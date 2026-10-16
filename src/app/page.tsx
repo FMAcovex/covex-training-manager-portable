@@ -6,6 +6,7 @@ import { calculateTrainingStatus, type TrainingSession } from "@/domain/training
 import { getPeopleRepository } from "@/server/people-repositories";
 import { getSessionRepository } from "@/server/session-repositories";
 import { getTrainingRepository } from "@/server/training-repositories";
+import { getPageUser } from "@/auth/page-user";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ function formatDate(value: string) {
 }
 
 export default async function Home() {
+  // Redirect unauthenticated portable users before querying protected repositories.
+  await getPageUser();
   const [trainings, sessions, people] = await Promise.all([
     getTrainingRepository().list(),
     getSessionRepository().listAll(),

@@ -2,6 +2,25 @@
 
 Aplicación web interna para gestionar formaciones, sesiones, asistentes, documentación, planes anuales e historiales individuales.
 
+## H10C · candidata portable Windows (NO-GO corporativo / GMP)
+
+La entrega `0.3.0-rc.1` incluye un ZIP Windows x64 con EXE y runtime embebido.
+Extraer **todo** el ZIP y abrir `COVEX Training Manager Portable.exe` con doble clic;
+el usuario no instala Node.js, PostgreSQL ni Docker. No es un EXE autónomo separado de sus carpetas.
+
+- Inicio y prueba sin IT: [Guía Windows](docs/GUIA_INICIO_WINDOWS.md).
+- Configuración visual Microsoft 365, seguridad y piloto: [Entrega IT](docs/H10C_IT_HANDOFF.md).
+- Evidencias automatizadas y pruebas reales pendientes: [Matriz H10C](docs/H10C_ACCEPTANCE_MATRIX.md).
+- Descarga: artefacto `covex-training-manager-portable-windows-h10c` de la CI de la PR H10C;
+  contiene ZIP versionado, SHA-256 y manifiesto del commit. No es una publicación productiva.
+
+La demostración de escritorio es **solo lectura**, usa exclusivamente datos sintéticos y no
+lee/escribe `.data`, importa archivos, sube adjuntos ni conecta a Microsoft 365. Permite navegar
+por los módulos y obtener Anexos III/IV/V ficticios. La demo de desarrollo descrita debajo es distinta.
+El piloto conserva los 22 modelos y todas las funciones H10B, con Entra obligatorio y sin fallback demo.
+Los bloqueos de permisos, auditoría, reconciliación y recuperación de H10B siguen vigentes:
+**NO-GO para datos corporativos y GMP hasta aceptación real de IT y Calidad**.
+
 ## Origen de esta distribución portable
 
 Este repositorio comenzó como un snapshot revisado de
@@ -46,7 +65,7 @@ Ejecutar pnpm quality para generación Prisma, lint, tests, build y validación 
 H10A añade una prueba vertical independiente en `/portable-poc`: conserva la interfaz Next.js, se empaqueta con Electron para Windows y usa autenticación delegada de Microsoft Entra (MSAL, Authorization Code + PKCE) para acceder a una lista y una biblioteca de SharePoint mediante Microsoft Graph. No sustituye todavía PostgreSQL ni activa el conjunto completo de módulos.
 
 1. Copiar `.env.example` a `.env.local` y completar únicamente los identificadores públicos indicados en [`docs/H10A_IT_REQUIREMENTS.md`](docs/H10A_IT_REQUIREMENTS.md).
-2. Ejecutar `pnpm portable:dev` para la aplicación de escritorio local.
+2. Ejecutar `pnpm portable:dev` para compilar y abrir el asistente de escritorio H10C (desarrolladores).
 3. Ejecutar `pnpm portable:verify` para las pruebas simuladas de Graph/SharePoint.
 4. Ejecutar `pnpm portable:package:win` para generar el paquete x64 en `dist-portable/`.
 

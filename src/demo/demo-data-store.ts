@@ -7,6 +7,8 @@ function dataPath(fileName: string) {
 }
 
 export function readDemoJson<T>(fileName: string): T | undefined {
+  // Desktop demonstrations never load local files left by a user or another mode.
+  if (process.env.PORTABLE_DESKTOP_MODE === "demo") return undefined;
   const path = dataPath(fileName);
   if (!existsSync(path)) return undefined;
   try {
@@ -17,6 +19,7 @@ export function readDemoJson<T>(fileName: string): T | undefined {
 }
 
 export function writeDemoJson(fileName: string, value: unknown) {
+  if (process.env.PORTABLE_DESKTOP_MODE === "demo") throw new Error("DEMO — DATOS FICTICIOS: demostración portable de solo lectura");
   const path = dataPath(fileName);
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;

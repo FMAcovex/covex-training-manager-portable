@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, sign, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { chromium } from "playwright-core";
 
@@ -18,7 +17,7 @@ function token(audience) {
 const output = path.join(root, "tmp/portable-smoke"); await mkdir(output, { recursive: true });
 let logs = ""; let browser; let server;
 try {
-  server = spawn(process.execPath, ["--import", fileURLToPath(new URL("./graph-simulator.mjs", import.meta.url)), path.join(root, "node_modules/next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "--port", String(port)], {
+  server = spawn(process.execPath, ["--import", new URL("./graph-simulator.mjs", import.meta.url).href, path.join(root, "node_modules/next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: root,
     env: {
       ...process.env, NODE_ENV: "production", APP_ENV: "production", AUTH_MODE: "portable-entra", PERSISTENCE_PROVIDER: "portable-sharepoint", DATABASE_URL: "",
@@ -98,6 +97,9 @@ try {
   console.log("Portable UI smoke passed; synthetic evidence in tmp/portable-smoke.");
 } catch (error) {
   await writeFile(path.join(output, "server.log"), logs);
+  // Synthetic test process only; surface startup errors as a GitHub annotation.
+  const diagnostic = logs.slice(-8000).replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[REDACTED_SYNTHETIC_JWT]");
+  console.error(`::error title=Synthetic UI server::${diagnostic.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A")}`);
   throw error;
 } finally {
   if (browser) await browser.close();

@@ -138,7 +138,7 @@ jobs:
 
   portable-windows:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -165,12 +165,53 @@ jobs:
       - name: Verify portable adapters
         run: pnpm portable:verify
 
-      - name: Build Windows portable prototype
-        run: pnpm portable:package:win
+      - name: Verify desktop lifecycle and security
+        run: pnpm portable:desktop:verify
 
-      - name: Upload Windows prototype
+      - name: Build Windows portable release candidate
+        run: |
+          pnpm portable:package:win 2>&1 | Tee-Object -Variable buildOutput
+          if ($LASTEXITCODE -ne 0) {
+            $detail = ($buildOutput | Select-Object -Last 40) -join "`n"
+            $detail = $detail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Windows packaging::$detail"
+            exit 1
+          }
+
+      - name: Run extracted Windows EXE (native UI, lifecycle, isolation and package hash)
+        env:
+          DEBUG: pw:browser
+        run: |
+          pnpm portable:desktop:smoke 2>&1 | Tee-Object -Variable smokeOutput
+          if ($LASTEXITCODE -ne 0) {
+            $detail = ($smokeOutput | Select-Object -Last 40) -join "`n"
+            $detail = $detail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Windows EXE acceptance::$detail"
+            exit 1
+          }
+
+      - name: Install browser for signed-identity regression
+        run: pnpm exec playwright-core install chromium
+
+      - name: Portable UI with signed synthetic identity and simulated Graph on Windows
+        run: pnpm portable:smoke
+
+      - name: Upload Windows release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: covex-training-manager-portable-windows-h10b
-          path: dist-portable/**
+          name: covex-training-manager-portable-windows-h10c
+          path: |
+            dist-portable/*.zip
+            dist-portable/*.sha256
+            dist-portable/BUILD_MANIFEST.json
           if-no-files-found: error
+
+      - name: Upload synthetic Windows acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h10c-windows-acceptance-synthetic
+          path: |
+            tmp/desktop-smoke/**
+            tmp/portable-smoke/**
+          if-no-files-found: ignore

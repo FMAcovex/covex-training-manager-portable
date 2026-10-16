@@ -83,6 +83,7 @@ export default async function AppShell({ active, children }: { active: string; c
       </aside>
 
       <div className="shell-content">
+        {process.env.PORTABLE_DESKTOP_MODE && <aside className="portable-notice" role="note">{process.env.PORTABLE_DESKTOP_MODE === "demo" ? "DEMO — DATOS FICTICIOS · Solo lectura · Sin importaciones, adjuntos ni conexión corporativa" : "CANDIDATA — NO-GO para datos corporativos y uso GMP hasta validación de IT y Calidad"}</aside>}
         <header className="topbar">
           <div className="topbar-title">
             <span>Gestión de Formaciones</span>
