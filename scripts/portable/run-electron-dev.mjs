@@ -5,7 +5,13 @@ const port = 43110;
 const applicationUrl = `http://127.0.0.1:${port}`;
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const next = spawn(pnpm, ["dev", "--hostname", "127.0.0.1", "--port", String(port)], {
-  env: { ...process.env, APP_ENV: "development", AUTH_MODE: "demo", SHAREPOINT_ENABLED: "false" },
+  env: {
+    ...process.env,
+    APP_ENV: "production",
+    AUTH_MODE: "portable-entra",
+    PERSISTENCE_PROVIDER: "portable-sharepoint",
+    PORTABLE_ENTRA_REDIRECT_URI: process.env.PORTABLE_ENTRA_REDIRECT_URI || `${applicationUrl}/acceso-denegado`,
+  },
   stdio: "inherit",
 });
 

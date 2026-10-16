@@ -4,7 +4,7 @@ import { readDemoJson, writeDemoJson } from "@/demo/demo-data-store";
 
 export type DemoCatalogStore = TrainingCatalogs & { departments: Department[] };
 
-const defaultDepartments: Department[] = [
+export const defaultDepartments: Department[] = [
   { id: "quality", code: "GC", name: "Garantía de Calidad", active: true },
   { id: "technical-direction", code: "DT", name: "Dirección Técnica", active: true },
   { id: "qc-physchem", code: "FQ", name: "Control de Calidad · Fisicoquímico", active: true },

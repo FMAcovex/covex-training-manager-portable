@@ -5,11 +5,13 @@ import { InMemoryDocumentControlRepository, type DocumentControlRepository } fro
 import { DocumentControlService } from "./service";
 import { getAuditEventRepository } from "@/administration/repositories";
 import { prisma } from "@/server/prisma";
-import { shouldUsePersistentRepositories } from "@/config/runtime";
+import { shouldUsePersistentRepositories, shouldUsePortableSharePoint } from "@/config/runtime";
+import { getPortableProvider } from "@/portable/sharepoint/provider";
 
 const globalForDocumentControl = globalThis as unknown as { demoDocumentControlRepository?: DocumentControlRepository };
 
 export function getDocumentControlRepository(): DocumentControlRepository {
+  if (shouldUsePortableSharePoint()) return getPortableProvider().documentControl;
   if (shouldUsePersistentRepositories()) return new PrismaDocumentControlRepository(prisma);
   globalForDocumentControl.demoDocumentControlRepository ??= new InMemoryDocumentControlRepository(undefined, getAuditEventRepository());
   return globalForDocumentControl.demoDocumentControlRepository;

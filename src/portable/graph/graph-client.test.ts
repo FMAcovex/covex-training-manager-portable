@@ -28,10 +28,36 @@ describe("GraphClient", () => {
     expect(sleep).toHaveBeenCalledWith(1_000);
   });
 
+  it("recovers from a temporary Graph 503", async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(json({ error: { code: "serviceUnavailable" } }, { status: 503 }))
+      .mockResolvedValueOnce(json({ value: [{ id: "recovered" }] }));
+    const client = new GraphClient("delegated-token-value-long-enough", { fetch: fetcher, sleep });
+    await expect(client.paginate<{ id: string }>("/sites/site/lists/list/items")).resolves.toEqual([{ id: "recovered" }]);
+    expect(sleep).toHaveBeenCalledOnce();
+  });
+
+  it("paginates beyond SharePoint's 5000-item view threshold", async () => {
+    const first = Array.from({ length: 5000 }, (_, id) => ({ id: String(id) }));
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(json({ value: first, "@odata.nextLink": "https://graph.microsoft.com/v1.0/sites/site/lists/list/items?page=2" }))
+      .mockResolvedValueOnce(json({ value: [{ id: "5000" }] }));
+    const client = new GraphClient("delegated-token-value-long-enough", { fetch: fetcher });
+    await expect(client.paginate<{ id: string }>("/sites/site/lists/list/items")).resolves.toHaveLength(5001);
+  });
+
   it("turns HTTP 412 into a readable concurrency conflict", async () => {
     const fetcher = vi.fn().mockResolvedValue(json({ error: { code: "preconditionFailed" } }, { status: 412 }));
     const client = new GraphClient("delegated-token-value-long-enough", { fetch: fetcher, maxRetries: 0 });
     await expect(client.requestJson("/sites/site/lists/list/items/1", { method: "PATCH" })).rejects.toBeInstanceOf(GraphConflictError);
+  });
+
+  it("does not blindly repeat a POST after an uncertain server failure", async () => {
+    const fetcher = vi.fn().mockResolvedValue(json({ error: { code: "serviceUnavailable" } }, { status: 503 }));
+    const client = new GraphClient("delegated-token-value-long-enough", { fetch: fetcher, sleep: vi.fn() });
+    await expect(client.requestJson("/sites/site/lists/list/items", { method: "POST", body: "{}" })).rejects.toMatchObject({ status: 503 });
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 
   it("rejects pagination outside graph.microsoft.com", async () => {
@@ -39,5 +65,14 @@ describe("GraphClient", () => {
     const client = new GraphClient("delegated-token-value-long-enough", { fetch: fetcher });
     await expect(client.paginate("/sites/site/lists/list/items")).rejects.toMatchObject<Partial<GraphRequestError>>({ code: "invalidNextLink" });
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("never sends delegated tokens to arbitrary upload-session hosts", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
+    const client = new GraphClient("delegated-token-value-long-enough", { fetch: fetcher });
+    await expect(client.requestUpload("https://attacker.invalid/upload", { method: "PUT" })).rejects.toMatchObject({ code: "invalidUploadUrl" });
+    expect(fetcher).not.toHaveBeenCalled();
+    await expect(client.requestUpload("https://tenant.up.1drv.com/upload", { method: "PUT" })).resolves.toMatchObject({ status: 202 });
+    expect((fetcher.mock.calls[0][1]?.headers as Headers | undefined)?.get?.("Authorization") ?? null).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import { getUserProfileRepository } from "@/administration/repositories";
 import type { UserProfileRepository } from "@/administration/user-profile-repository";
 import { readRuntimeConfiguration } from "@/config/runtime";
 import { resolveEntraProxyPrincipal } from "@/auth/entra-proxy";
+import { requirePortableSession } from "@/portable/auth/server-session";
 
 import { AuthenticationError } from "@/auth/errors";
 export { AuthenticationError } from "@/auth/errors";
@@ -27,6 +28,11 @@ export async function resolveAppServiceUser(
 export async function getCurrentUser(): Promise<CurrentUser> {
   const config = readRuntimeConfiguration();
   if (config.authMode === "demo") return demoUser;
+
+  if (config.authMode === "portable-entra") {
+    const session = await requirePortableSession();
+    return resolveAppServiceUser(session.entraObjectId);
+  }
 
   const requestHeaders = await headers();
   if (config.authMode === "entra-proxy") {

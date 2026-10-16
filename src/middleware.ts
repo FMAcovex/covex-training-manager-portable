@@ -1,5 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+const unsafe = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const requestIdPattern = /^[A-Za-z0-9._:-]{8,128}$/;
 
 function requestIdFrom(request: NextRequest) {
@@ -9,14 +10,18 @@ function requestIdFrom(request: NextRequest) {
 
 export function middleware(request: NextRequest) {
   const requestId = requestIdFrom(request);
+  if (process.env.PERSISTENCE_PROVIDER === "portable-sharepoint" && unsafe.has(request.method) && request.nextUrl.pathname.startsWith("/api/")) {
+    const configured = process.env.PORTABLE_ENTRA_REDIRECT_URI;
+    const expectedOrigin = configured ? new URL(configured).origin : undefined;
+    if (!expectedOrigin || request.headers.get("origin") !== expectedOrigin) {
+      return NextResponse.json({ error: "Origen no autorizado para la edición portable." }, { status: 403, headers: { "X-Request-Id": requestId } });
+    }
+  }
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-request-id", requestId);
-
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("X-Request-Id", requestId);
   return response;
 }
 
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-};
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };

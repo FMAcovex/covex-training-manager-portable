@@ -9,12 +9,13 @@ export async function GET(request: Request) {
   const requestId = request.headers.get("x-request-id") ?? "unavailable";
   try {
     const config = readRuntimeConfiguration();
-    if (config.production || config.databaseConfigured) await checkDatabaseConnection();
+    if (config.persistenceProvider === "server-postgres") await checkDatabaseConnection();
 
     return NextResponse.json({
       status: "ok",
       environment: config.production ? "production" : "development",
-      database: config.production || config.databaseConfigured ? "ok" : "demo-memory",
+      database: config.persistenceProvider === "server-postgres" ? "ok" : config.persistenceProvider === "demo" ? "demo-memory" : "not-required",
+      persistence: config.persistenceProvider,
       authentication: config.authMode,
       sharePoint: config.sharePoint.enabled ? "configured" : "disabled",
       responseTimeMs: Date.now() - startedAt,

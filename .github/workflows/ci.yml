@@ -36,6 +36,25 @@ jobs:
       - name: Quality
         run: pnpm quality && pnpm deployment:verify
 
+      - name: Verify SharePoint provisioning plan (no corporate access)
+        run: pnpm portable:provision:dry-run
+        env:
+          PORTABLE_SHAREPOINT_SITE_ID: synthetic-site
+
+      - name: Install browser for portable UI smoke
+        run: pnpm exec playwright-core install --with-deps chromium
+
+      - name: Portable UI smoke with signed synthetic identity and simulated Graph
+        run: pnpm portable:smoke
+
+      - name: Upload synthetic portable smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h10b-portable-smoke-synthetic
+          path: tmp/portable-smoke/**
+          if-no-files-found: ignore
+
 
   database-migrations:
     runs-on: ubuntu-latest
@@ -152,6 +171,6 @@ jobs:
       - name: Upload Windows prototype
         uses: actions/upload-artifact@v4
         with:
-          name: covex-training-manager-portable-windows-h10a
+          name: covex-training-manager-portable-windows-h10b
           path: dist-portable/**
           if-no-files-found: error

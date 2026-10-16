@@ -44,11 +44,12 @@ function startStandaloneServer() {
       ELECTRON_RUN_AS_NODE: "1",
       HOSTNAME: "127.0.0.1",
       PORT: String(port),
-      APP_ENV: "development",
-      AUTH_MODE: "demo",
-      SHAREPOINT_ENABLED: "false",
+      APP_ENV: "production",
+      AUTH_MODE: "portable-entra",
+      PERSISTENCE_PROVIDER: "portable-sharepoint",
+      PORTABLE_ENTRA_REDIRECT_URI: process.env.PORTABLE_ENTRA_REDIRECT_URI || `${loopbackOrigin}/acceso-denegado`,
     },
-    stdio: "pipe",
+    stdio: "ignore",
     windowsHide: true,
   });
   serverProcess.once("exit", (code) => {
@@ -78,7 +79,7 @@ async function createWindow() {
     if (!allowedNavigation(url)) event.preventDefault();
   });
   window.once("ready-to-show", () => window.show());
-  await window.loadURL(`${applicationUrl}/portable-poc`);
+  await window.loadURL(applicationUrl);
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();

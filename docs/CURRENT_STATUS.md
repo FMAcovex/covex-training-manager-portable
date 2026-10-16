@@ -1,5 +1,15 @@
 # Estado actual del proyecto
 
+## H10B — edición portable en revisión
+
+- PR única en borrador: https://github.com/FMAcovex/covex-training-manager-portable/pull/4.
+- Proveedor `portable-sharepoint`, esquema/adaptadores 22/22, sesión Entra y módulos existentes conectados; sin PostgreSQL para el usuario portable.
+- Escrituras coordinadas entre instalaciones, ETags, numeración, journal segmentado, bloqueo conservador ante fallos e integridad documental SHA-256.
+- Smoke de la UI real con identidad firmada y Graph simulados; pruebas sintéticas, calidad, regresión H9A y artefacto Windows en CI.
+- **H10B no aceptado con COVEX / NO-GO para datos reales.** Pendientes el piloto real y los bloqueos específicos de permisos delegados, auditoría, consistencia, plantillas y recuperación documentados en `H10B_SECURITY_AND_RECOVERY.md`.
+- Resultado, cobertura y límites: `H10B_RESULT.md`; configuración/piloto: `H10B_IT_REQUIREMENTS.md`.
+- Repositorio original preservado; no se ha hecho merge/squash ni comenzado la siguiente fase.
+
 ## Versión de especificación
 
 `Functional Spec v1.0 — preparada para iniciar desarrollo`
@@ -92,7 +102,7 @@
 - Secretos y variables corporativas reales.
 - Activación real de SharePoint/Microsoft Graph, que sigue siendo opcional para el primer despliegue.
 - Pruebas de aceptación sobre infraestructura corporativa y puesta en servicio.
-- Migración integral de los 22 modelos Prisma a Microsoft 365 (H10B no iniciado).
+- Validación corporativa integral de los 22 modelos y aceptación GMP de H10B.
 
 ## Estado de aceptación
 
@@ -124,7 +134,7 @@ Estas dependencias no bloquean la creación del esqueleto y prototipo con datos 
 - Concurrencia optimista por ETag, reintentos y pruebas simuladas.
 - Auditoría de los 22 modelos y requisitos de IT documentados en `H10A_PORTABLE_AUDIT.md` y `H10A_IT_REQUIREMENTS.md`.
 - Validación real de Microsoft 365 pendiente de tenant, aplicación Entra y recursos SharePoint de IT.
-- H10B no iniciado.
+- H10B implementado para revisión y pruebas sintéticas; aceptación corporativa bloqueada según la sección inicial.
 
 
 ## Hito 8 — cerrado e incorporado mediante PR #10

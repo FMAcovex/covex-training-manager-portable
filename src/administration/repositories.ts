@@ -7,19 +7,23 @@ import { PrismaCatalogAdminRepository } from "./prisma-catalog-repository";
 import { getTrainingRepository } from "@/server/training-repositories";
 import { getPeopleRepository } from "@/server/people-repositories";
 import { prisma } from "@/server/prisma";
-import { shouldUsePersistentRepositories } from "@/config/runtime";
+import { shouldUsePersistentRepositories, shouldUsePortableSharePoint } from "@/config/runtime";
+import { getPortableProvider } from "@/portable/sharepoint/provider";
 
 const globalAdmin = globalThis as unknown as { auditRepository?: AuditEventRepository; userProfileRepository?: UserProfileRepository; catalogAdminRepository?: CatalogAdminRepository };
 
 export function getAuditEventRepository(): AuditEventRepository {
+  if (shouldUsePortableSharePoint()) return getPortableProvider().audit;
   if (shouldUsePersistentRepositories()) return new PrismaAuditEventRepository(prisma);
   globalAdmin.auditRepository ??= new InMemoryAuditEventRepository(undefined, true); return globalAdmin.auditRepository;
 }
 export function getUserProfileRepository(): UserProfileRepository {
+  if (shouldUsePortableSharePoint()) return getPortableProvider().users;
   if (shouldUsePersistentRepositories()) return new PrismaUserProfileRepository(prisma);
   globalAdmin.userProfileRepository ??= new InMemoryUserProfileRepository(getAuditEventRepository()); return globalAdmin.userProfileRepository;
 }
 export function getCatalogAdminRepository(): CatalogAdminRepository {
+  if (shouldUsePortableSharePoint()) return getPortableProvider().catalogs;
   if (shouldUsePersistentRepositories()) return new PrismaCatalogAdminRepository(prisma);
   globalAdmin.catalogAdminRepository ??= new InMemoryCatalogAdminRepository(getAuditEventRepository(), getTrainingRepository(), getPeopleRepository(), undefined, true); return globalAdmin.catalogAdminRepository;
 }
