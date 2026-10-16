@@ -346,3 +346,13 @@ Por petición expresa del responsable (Issue #3), se implementan offline los ada
 Las escrituras se serializan entre instalaciones mediante bloqueo ETag y journal previo a las mutaciones. Tras error incierto o interrupción se exige reconciliación; no hay recuperación por caducidad del bloqueo ni promesa de transacciones SQL. Las secuencias reservadas no se reutilizan. Los nuevos adjuntos conservan SHA-256. Los límites y procedimiento están en `H10B_SECURITY_AND_RECOVERY.md`.
 
 La aplicación pública con permisos delegados no puede impedir por sí sola llamadas Graph externas ni garantizar autenticidad/inmutabilidad GMP de auditoría. Permisos corporativos efectivos o una autoridad de escritura aprobada son una puerta de aceptación explícita. No se amplían permisos ni se instala esa alternativa de forma automática. Código probado con mocks no equivale a conexión COVEX validada.
+
+## D-064 — H10C: entrega de escritorio y demostración aislada
+
+Por petición expresa del responsable (Issue #5), se entrega una candidata Windows x64 en ZIP con EXE y runtime Electron/Next embebidos, sin instalación de Node, PostgreSQL ni Docker para el usuario. Se conserva la UI y el proveedor H10B de 22 modelos; H9A no cambia. El asistente local carga solo identificadores públicos validados desde el perfil Windows; no admite secretos ni modifica el binario.
+
+El contenido web no recibe el puente privilegiado del asistente. Se mantiene `127.0.0.1:43110` y la URI Entra, se verifica identidad HMAC/PID del proceso propio antes de enviar la cookie efímera, se rechazan Host/Origin ajenos y no se contactan ni terminan servicios ajenos. Tokens y sesiones corporativas permanecen en memoria; el cierre destruye la sesión y termina el proceso propio.
+
+La opción segura autorizada por el Issue es una demo explícita de navegación y generación de anexos ficticios, no una réplica editable: se bloquean mutaciones/importaciones/adjuntos y cualquier API corporativa, no se leen archivos `.data` ni variables corporativas heredadas. No hay promoción ni sincronización de datos demo. El piloto corporativo exige Entra real; no hereda identidad demo.
+
+El resultado técnico de CI no autoriza datos reales ni uso GMP. Siguen abiertos D-063 y los bloqueos de permisos efectivos Graph, auditoría, reconciliación y recuperación. Firma de código, Windows físico/usuario estándar, AV, MFA y aceptación de dos usuarios/dos equipos requieren IT y Calidad. Sin actualización remota automática ni firma con credenciales inventadas.

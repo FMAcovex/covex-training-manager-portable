@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <title>COVEX Training Manager Portable — Inicio</title>
+  <link rel="stylesheet" href="launcher.css">
+  <script src="launcher.js" defer></script>
+</head>
+<body>
+  <header><img src="covex-logo.jpg" width="116" height="65" alt="COVEX"><div><h1>COVEX Training Manager Portable</h1><p>Inicio y configuración · Windows x64 · <span id="version"></span></p></div></header>
+  <main>
+    <aside class="notice"><strong>CANDIDATA — NO-GO para datos corporativos y uso GMP</strong><p>Utiliza únicamente datos ficticios. La conexión real, los permisos, la auditoría y la recuperación deben ser validados por IT y Calidad.</p></aside>
+    <section class="card status" aria-live="polite" aria-busy="false" id="status-panel"><h2>Estado de la aplicación</h2><p id="status-message">Preparando el asistente local…</p><small id="status-code"></small><button id="retry" type="button" hidden>Reintentar arranque</button></section>
+    <div class="choices">
+      <section class="card"><h2>Probar sin configuración</h2><p><strong>DEMO — DATOS FICTICIOS</strong></p><p>Explora las pantallas, las sesiones, los formadores y los anexos existentes. La demostración es de solo lectura: no importa archivos, no admite adjuntos ni se conecta a Microsoft 365.</p><button id="start-demo" type="button">Abrir demostración</button></section>
+      <section class="card"><h2>Piloto Microsoft 365</h2><p>IT debe entregar los identificadores públicos de Entra y SharePoint. No necesitas instalar Node.js, PostgreSQL ni Docker.</p><label class="check"><input id="acknowledge" type="checkbox">Confirmo que solo usaré datos sintéticos hasta la validación real de IT y Calidad.</label><button id="start-corporate" type="button" disabled>Abrir piloto Microsoft 365</button><p class="muted">Guardar configuración o comprobar la red no valida permisos ni autoriza producción.</p></section>
+    </div>
+    <section class="card"><h2>Asistente de configuración Microsoft 365</h2><p>Estos valores son identificadores públicos. Nunca introduzcas contraseñas, secretos de cliente o tokens. Se guardan solo en tu perfil de Windows.</p>
+      <form id="settings"><div class="form-grid">
+        <label>Tenant ID<input id="tenantId" name="tenantId" required maxlength="36" placeholder="UUID del tenant Microsoft Entra" autocomplete="off"></label>
+        <label>Client ID<input id="clientId" name="clientId" required maxlength="36" placeholder="UUID de la aplicación SPA / PKCE" autocomplete="off"></label>
+        <label class="full">Site ID<input id="siteId" name="siteId" required maxlength="250" placeholder="tenant.sharepoint.com,UUID,UUID" autocomplete="off"></label>
+        <label>Prefijo de listas<input id="listPrefix" name="listPrefix" required maxlength="40" value="COVEX" autocomplete="off"></label>
+        <label>Drive ID<input id="driveId" name="driveId" required maxlength="250" placeholder="Identificador Graph de la biblioteca" autocomplete="off"></label>
+        <label class="full">Redirect URI registrada en Entra<input id="redirectUri" name="redirectUri" readonly value="http://127.0.0.1:43110/acceso-denegado"><small>El puerto y la URI son fijos para conservar el registro de IT.</small></label>
+      </div><div class="actions"><button type="submit" id="save">Guardar configuración pública</button><button type="button" id="import" class="secondary">Importar JSON público</button><button type="button" id="export" class="secondary" disabled>Exportar JSON público</button><button type="button" id="connectivity" class="secondary" disabled>Comprobar conectividad</button></div></form>
+    </section>
+    <section class="card"><h2>Ayuda y diagnóstico</h2><p>Extrae todo el ZIP antes de abrir el EXE. Conserva juntas sus carpetas. Para volver a este asistente usa el menú <strong>COVEX → Configuración / cambiar de modo</strong>. Cerrar la ventana de trabajo detiene el servicio local.</p><p>El diagnóstico contiene versión, modo y códigos de estado; no contiene tokens, datos de formación, identificadores del tenant ni rutas de tu usuario.</p><div class="actions"><button type="button" id="copy-diagnostic" class="secondary">Copiar diagnóstico redactado</button><button type="button" id="export-diagnostic" class="secondary">Exportar diagnóstico redactado</button></div><p id="feedback" role="status"></p></section>
+  </main>
+</body>
+</html>

@@ -1,14 +1,27 @@
 # Estado actual del proyecto
 
-## H10B — edición portable en revisión
+## H10C — entrega Windows candidata
 
-- PR única en borrador: https://github.com/FMAcovex/covex-training-manager-portable/pull/4.
+- Base aprobada `6fa4aee00356453fb3e0b0435a48e9bbaa4e3b25`; rama `feature/h10c-windows-portable-delivery`.
+- Versión `0.3.0-rc.1`: ZIP con EXE/runtime, README de inicio, manifiesto e integridad SHA-256.
+- Asistente visual para identificadores públicos; configuración por usuario fuera del directorio de instalación. Sin secretos ni cambios en el binario.
+- Lanzador separado del contenido web: IPC acotado, sandbox, navegación restringida, sesión efímera, cookie local de instancia y verificación HMAC/PID del proceso propio.
+- Puerto y redirect Entra conservados. Instancia única, error ante puerto ajeno sin contactarlo/matarlo, cierre y recuperación visibles.
+- Demo de navegación de solo lectura, datos sintéticos integrados, sin `.data`, importación, adjuntos ni proveedor corporativo. Anexos ficticios disponibles.
+- Pruebas de regresión existentes conservadas; CI ejecuta el EXE Windows extraído, no solo su compilación. La matriz diferencia CI de aceptación física/corporativa pendiente.
+- Guías: `GUIA_INICIO_WINDOWS.md`, `H10C_IT_HANDOFF.md`, `H10C_ACCEPTANCE_MATRIX.md`.
+- **NO-GO corporativo / GMP**: Windows físico, usuario estándar, firma/AV, Entra/SharePoint y aceptación de IT y Calidad siguen pendientes. El repositorio original y H9A no se modifican.
+- PR única en borrador; no se autoriza squash ni merge de H10C.
+
+## H10B — base integrada; aceptación corporativa pendiente
+
+- PR base integrada: https://github.com/FMAcovex/covex-training-manager-portable/pull/4 (estado histórico previo a H10C).
 - Proveedor `portable-sharepoint`, esquema/adaptadores 22/22, sesión Entra y módulos existentes conectados; sin PostgreSQL para el usuario portable.
 - Escrituras coordinadas entre instalaciones, ETags, numeración, journal segmentado, bloqueo conservador ante fallos e integridad documental SHA-256.
 - Smoke de la UI real con identidad firmada y Graph simulados; pruebas sintéticas, calidad, regresión H9A y artefacto Windows en CI.
 - **H10B no aceptado con COVEX / NO-GO para datos reales.** Pendientes el piloto real y los bloqueos específicos de permisos delegados, auditoría, consistencia, plantillas y recuperación documentados en `H10B_SECURITY_AND_RECOVERY.md`.
 - Resultado, cobertura y límites: `H10B_RESULT.md`; configuración/piloto: `H10B_IT_REQUIREMENTS.md`.
-- Repositorio original preservado; no se ha hecho merge/squash ni comenzado la siguiente fase.
+- Repositorio original preservado. H10C parte de la base integrada aprobada, sin repetir H10B.
 
 ## Versión de especificación
 

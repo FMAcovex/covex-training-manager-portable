@@ -1538,3 +1538,16 @@ td small { color: var(--text-muted); }
     flex-direction: column;
   }
 }
+
+.portable-notice {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 10px 22px;
+  background: #fff4d6;
+  color: #725018;
+  border-bottom: 1px solid #e3c17b;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}

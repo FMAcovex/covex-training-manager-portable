@@ -138,7 +138,7 @@ jobs:
 
   portable-windows:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -165,12 +165,37 @@ jobs:
       - name: Verify portable adapters
         run: pnpm portable:verify
 
-      - name: Build Windows portable prototype
+      - name: Verify desktop lifecycle and security
+        run: pnpm portable:desktop:verify
+
+      - name: Build Windows portable release candidate
         run: pnpm portable:package:win
 
-      - name: Upload Windows prototype
+      - name: Run extracted Windows EXE (native UI, lifecycle, isolation and package hash)
+        run: pnpm portable:desktop:smoke
+
+      - name: Install browser for signed-identity regression
+        run: pnpm exec playwright-core install chromium
+
+      - name: Portable UI with signed synthetic identity and simulated Graph on Windows
+        run: pnpm portable:smoke
+
+      - name: Upload Windows release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: covex-training-manager-portable-windows-h10b
-          path: dist-portable/**
+          name: covex-training-manager-portable-windows-h10c
+          path: |
+            dist-portable/*.zip
+            dist-portable/*.sha256
+            dist-portable/BUILD_MANIFEST.json
           if-no-files-found: error
+
+      - name: Upload synthetic Windows acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h10c-windows-acceptance-synthetic
+          path: |
+            tmp/desktop-smoke/**
+            tmp/portable-smoke/**
+          if-no-files-found: ignore
