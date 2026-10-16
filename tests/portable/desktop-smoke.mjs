@@ -73,7 +73,10 @@ try {
   await launcher.locator("#version").filter({ hasText: manifest.version }).waitFor();
   record("extracted-exe-unicode-spaces-read-only-install");
   assert.equal(await launcher.evaluate(() => typeof window.require), "undefined");
-  const preferences = await native.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences());
+  const preferences = await native.evaluate(({ BrowserWindow }) => {
+    const { sandbox, contextIsolation, nodeIntegration } = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();
+    return { sandbox, contextIsolation, nodeIntegration };
+  });
   assert.equal(preferences.sandbox, true); assert.equal(preferences.contextIsolation, true); assert.equal(preferences.nodeIntegration, false);
   record("sandbox-isolation-no-renderer-node");
 
@@ -159,11 +162,16 @@ try {
   assert.equal((await localRequest("/api/people")).status, 401, "Corporate data requires signed Entra identity, never demo fallback");
   await waitIdle();
   record("standalone-configuration-msal-corporate-auth-no-demo-fallback");
+  const popupCreated = native.waitForEvent("window");
+  await view.evaluate(() => { window.open("about:blank", "covex-synthetic-auth"); });
+  const popup = await popupCreated;
+  assert.equal(await popup.evaluate(() => typeof window.covexDesktop), "undefined");
   // Kill only the verified child created by this test, then verify actionable recovery.
   const corporateIdentity = await (await fetch(`${origin}/api/portable/desktop-ready`, { headers: { "x-covex-challenge": "b".repeat(48) } })).json();
   process.kill(corporateIdentity.pid);
   await until(async () => (await launcher.locator("#status-code").innerText()).includes("SERVER_EXIT"), "Unexpected owned-child exit must be visible");
   await until(portFree, "Crashed own child must release port"); view = null;
+  assert(popup.isClosed(), "OAuth popup must close and lose its session when owned server exits");
   await openDemo(); record("unexpected-child-exit-visible-and-recoverable");
   await native.close(); native = null; view = null;
   await until(portFree, "Quitting launcher must close own child and release port");

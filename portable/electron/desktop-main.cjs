@@ -12,10 +12,13 @@ const launcherURL = pathToFileURL(path.join(__dirname, "launcher.html")).href;
 let launcher, application, appSession, closing = false, busy = false, configuration = null;
 let status = { phase: "ready", message: "Selecciona demostración o configura el piloto Microsoft 365.", code: null, mode: null };
 const events = [];
+const oauthWindows = new Set();
 const server = new EmbeddedServer({ executable: process.execPath, entry: path.join(__dirname, "server-entry.cjs"), runtime: path.join(__dirname, "runtime", "server.js"), onExit: () => {
   if (closing) return;
   change({ phase: "error", code: "SERVER_EXIT", message: "El servicio local se ha cerrado. Revisa antivirus y extracción del ZIP; puedes reintentar o exportar el diagnóstico." });
-  if (application && !application.isDestroyed()) { const window = application; application = null; window.destroy(); }
+  destroyApplicationWindows();
+  const staleSession = appSession; appSession = null;
+  if (staleSession) void staleSession.clearStorageData().catch(() => {});
   launcher?.show();
 } });
 
@@ -47,10 +50,17 @@ function harden(window, oauth = false) {
     const allow = !oauth && status.mode === "corporate" && (url === "about:blank" || allowedNavigation(url, true));
     return allow ? { action: "allow", overrideBrowserWindowOptions: { webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, session: appSession } } } : { action: "deny" };
   });
-  window.webContents.on("did-create-window", (child) => harden(child, true));
+  window.webContents.on("did-create-window", (child) => {
+    oauthWindows.add(child); child.once("closed", () => oauthWindows.delete(child)); harden(child, true);
+  });
+}
+function destroyApplicationWindows() {
+  for (const child of oauthWindows) if (!child.isDestroyed()) child.destroy();
+  oauthWindows.clear();
+  if (application && !application.isDestroyed()) { const window = application; application = null; window.destroy(); }
 }
 async function stopApplication() {
-  if (application && !application.isDestroyed()) { const window = application; application = null; window.destroy(); }
+  destroyApplicationWindows();
   await server.stop();
   if (appSession) { await appSession.clearStorageData(); appSession = null; }
 }
