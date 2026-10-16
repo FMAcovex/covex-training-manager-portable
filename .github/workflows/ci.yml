@@ -115,3 +115,43 @@ jobs:
       - name: Clean isolated deployment
         if: always()
         run: docker compose --env-file deploy/.env.production -f docker-compose.production.yml -f tests/deployment/compose.ci.yml down -v
+
+
+  portable-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Verify portable adapters
+        run: pnpm portable:verify
+
+      - name: Build Windows portable prototype
+        run: pnpm portable:package:win
+
+      - name: Upload Windows prototype
+        uses: actions/upload-artifact@v4
+        with:
+          name: covex-training-manager-portable-windows-h10a
+          path: dist-portable/**
+          if-no-files-found: error

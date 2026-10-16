@@ -9,6 +9,7 @@ tmp
 !.env.example
 *.log
 coverage
+dist-portable
 tls
 backups
 deploy/.env.production

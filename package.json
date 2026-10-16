@@ -19,9 +19,13 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
-    "deployment:verify": "node --test tests/deployment/preflight.test.mjs"
+    "deployment:verify": "node --test tests/deployment/preflight.test.mjs",
+    "portable:dev": "node scripts/portable/run-electron-dev.mjs",
+    "portable:verify": "vitest run src/portable",
+    "portable:package:win": "pnpm build && node scripts/portable/package-windows.mjs"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.25.1",
     "@prisma/client": "^6.16.2",
     "jose": "6.2.12",
     "next": "^15.5.4",
@@ -31,9 +35,11 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
+    "electron": "^44.7.2",
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.5.4",
     "eslint-plugin-react-hooks": "^5.2.0",

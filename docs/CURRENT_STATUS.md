@@ -92,6 +92,7 @@
 - Secretos y variables corporativas reales.
 - Activación real de SharePoint/Microsoft Graph, que sigue siendo opcional para el primer despliegue.
 - Pruebas de aceptación sobre infraestructura corporativa y puesta en servicio.
+- Migración integral de los 22 modelos Prisma a Microsoft 365 (H10B no iniciado).
 
 ## Estado de aceptación
 
@@ -114,6 +115,16 @@ Antes de producción será necesaria coordinación con IT para los recursos/perm
 - políticas corporativas de seguridad/despliegue.
 
 Estas dependencias no bloquean la creación del esqueleto y prototipo con datos ficticios en un entorno de desarrollo cloud.
+
+## H10A — prototipo portable preparado
+
+- Shell Electron Windows x64 sobre la aplicación Next.js existente, limitado a loopback.
+- Autenticación Microsoft Entra mediante MSAL y PKCE, sin secreto de cliente.
+- CRUD vertical de Formación y almacenamiento/recuperación documental mediante Microsoft Graph.
+- Concurrencia optimista por ETag, reintentos y pruebas simuladas.
+- Auditoría de los 22 modelos y requisitos de IT documentados en `H10A_PORTABLE_AUDIT.md` y `H10A_IT_REQUIREMENTS.md`.
+- Validación real de Microsoft 365 pendiente de tenant, aplicación Entra y recursos SharePoint de IT.
+- H10B no iniciado.
 
 
 ## Hito 8 — cerrado e incorporado mediante PR #10
