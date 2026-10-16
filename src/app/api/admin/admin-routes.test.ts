@@ -9,6 +9,7 @@ vi.mock("@/auth/current-user", async (importOriginal) => {
 
 describe("autorización de rutas API administrativas", () => {
   beforeEach(() => { role = "ADMIN"; });
+  it.each(["USER", "RESPONSIBLE"] as const)("GET /api/admin/portable-operations devuelve 403 a %s", async (candidate) => { role = candidate; const { GET } = await import("./portable-operations/route"); expect((await GET())?.status).toBe(403); });
   it.each(["USER", "RESPONSIBLE"] as const)("GET /api/admin/users devuelve 403 a %s", async (candidate) => { role = candidate; const { GET } = await import("./users/route"); expect((await GET()).status).toBe(403); });
   it.each(["USER", "RESPONSIBLE"] as const)("GET /api/admin/catalogs/[kind] devuelve 403 a %s", async (candidate) => { role = candidate; const { GET } = await import("./catalogs/[kind]/route"); const response = await GET(new Request("http://localhost/api/admin/catalogs/training-types"), { params: Promise.resolve({ kind: "training-types" }) }); expect(response.status).toBe(403); });
   it.each(["USER", "RESPONSIBLE"] as const)("POST /api/admin/training-import devuelve 403 a %s", async (candidate) => { role = candidate; const { POST } = await import("./training-import/route"); const response = await POST(new Request("http://localhost/api/admin/training-import", { method: "POST" })); expect(response.status).toBe(403); });

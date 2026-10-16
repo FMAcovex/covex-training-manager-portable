@@ -12,6 +12,8 @@ Registrar una aplicación **single tenant** de cliente público. No crear ni ent
 
 Si el tenant no admite `Sites.Selected` delegado con el alcance requerido, IT debe detener el piloto y documentar la alternativa de mínimo privilegio. No se debe sustituir automáticamente por `Sites.ReadWrite.All`.
 
+Antes de autorizar datos corporativos, revisar el bloqueo de confianza y la matriz de permisos efectivos de [`H10B_SECURITY_AND_RECOVERY.md`](H10B_SECURITY_AND_RECOVERY.md). `Sites.Selected` por sí solo no garantiza los roles COVEX frente a llamadas directas a Graph ni una auditoría GMP inalterable.
+
 ## 2. SharePoint
 
 Entregar estos valores no secretos:
@@ -37,6 +39,10 @@ Revisar las 23 listas propuestas. Para aplicar el plan, usar un token administra
 
 Después del aprovisionamiento, eliminar el token de la sesión. El usuario bootstrap debe administrar los perfiles siguientes desde la aplicación.
 
+El aprovisionamiento normal deja las listas vacías. Solo para un sitio piloto sintético puede añadirse `--seed-synthetic`; no constituye aprobación de plantillas. El script rechaza columnas existentes cuyo tipo, índices o unicidad difieran del esquema y no las modifica automáticamente.
+
+Al ejecutar Next.js directamente, usar `APP_ENV=production`, `AUTH_MODE=portable-entra`, `PERSISTENCE_PROVIDER=portable-sharepoint` y `DATABASE_URL` vacío. Electron fija los tres modos automáticamente.
+
 ## 3. Red y equipo Windows
 
 Permitir HTTPS hacia `login.microsoftonline.com`, `graph.microsoft.com`, el dominio SharePoint corporativo y los hosts temporales `*.up.1drv.com` usados por las sesiones de carga. La aplicación solo escucha en `127.0.0.1:43110`.
@@ -53,7 +59,7 @@ Usar exclusivamente datos sintéticos y dos usuarios autorizados.
 4. Generar Anexos III, IV y V; ejecutar importación de formaciones e importación de formadores; ejecutar revisión de integridad.
 5. Cargar, recuperar y borrar un documento pequeño y otro mayor de 4 MB; comprobar hash/contenido y ausencia de sobrescritura.
 6. Abrir el mismo registro con dos usuarios; confirmar aviso 412 al segundo guardado.
-7. Crear formaciones y sesiones simultáneamente; confirmar códigos únicos y secuencias monotónicas.
+7. Crear formaciones y sesiones simultáneamente; comprobar que una obtiene el bloqueo, la otra recibe conflicto y, tras reintentar explícitamente, los códigos son únicos y las secuencias monotónicas.
 8. Simular 429, 5xx, desconexión y corte entre pasos; verificar reintento, compensación o `NEEDS_RECONCILIATION` sin pérdida silenciosa.
 9. Superar 5.000 elementos en una lista piloto o usar un conjunto equivalente controlado; comprobar índices y paginación.
 10. Probar backup y restauración conjunta de listas y biblioteca, retención, versionado, papelera, DLP, residencia, eDiscovery y antivirus.
@@ -61,3 +67,5 @@ Usar exclusivamente datos sintéticos y dos usuarios autorizados.
 ## 5. Puerta de producción
 
 La edición no puede manejar datos personales reales ni documentación GMP hasta que IT y Calidad firmen las evidencias anteriores, aprueben el mínimo privilegio, el procedimiento de reconciliación y la recuperación. La conexión simulada de CI no satisface esta puerta.
+
+El procedimiento de recuperación, el diagnóstico `GET /api/admin/portable-operations` y los límites pendientes están en [`H10B_SECURITY_AND_RECOVERY.md`](H10B_SECURITY_AND_RECOVERY.md).

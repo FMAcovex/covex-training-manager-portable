@@ -20,6 +20,9 @@ import type { PortableEntityStore } from "@/portable/sharepoint/entity-store";
 import type { PeopleRepository } from "@/server/people-repository";
 import { InMemoryTrainerRepository, type TrainerListOptions, type TrainerRepository } from "@/server/trainer-repository";
 import type { TrainingRepository } from "@/server/training-repository";
+import { createHash } from "node:crypto";
+import type { PortableWriteCoordinator } from "./write-coordinator";
+import { assertFileUploadEnvelope, validateFileUploadContent } from "@/security/file-upload-policy";
 
 const clone = <T>(value: T): T => structuredClone(value);
 const validationAudit: AuditEventRepository = { append: async (event) => ({ ...event, id: "validation", timestamp: "" }), list: async () => [] };
@@ -108,8 +111,8 @@ export class PortableAnnexRepository implements AnnexRepository {
   async listGeneratedDocuments(sessionId: string) { return (await this.store.list<GeneratedDocument>("GeneratedDocument", { parentId: sessionId })).map((item) => clone(item.data)); }
 }
 
-type StoredDocument = TrainerDocumentMeta & { driveItemId: string; driveETag: string };
-type StoredAttachment = DocumentControlAttachmentMeta & { driveItemId: string; driveETag: string };
+type StoredDocument = TrainerDocumentMeta & { driveItemId: string; driveETag: string; sha256?: string };
+type StoredAttachment = DocumentControlAttachmentMeta & { driveItemId: string; driveETag: string; sha256?: string };
 type StoredQualification = Omit<TrainerQualification, "person" | "current">;
 
 async function documents() {
@@ -125,14 +128,15 @@ function qualificationData(value: TrainerQualification): StoredQualification {
 }
 
 function documentMeta<T extends TrainerDocumentMeta | DocumentControlAttachmentMeta>(value: T & { driveItemId: string; driveETag: string }): T {
-  const data = clone(value) as T & { driveItemId?: string; driveETag?: string };
+  const data = clone(value) as T & { driveItemId?: string; driveETag?: string; sha256?: string };
   delete data.driveItemId;
   delete data.driveETag;
+  delete data.sha256;
   return data;
 }
 
 export class PortableTrainerRepository implements TrainerRepository {
-  constructor(private readonly store: PortableEntityStore, private readonly people: PeopleRepository, private readonly audit: AuditEventRepository) {}
+  constructor(private readonly store: PortableEntityStore, private readonly people: PeopleRepository, private readonly audit: AuditEventRepository, private readonly writes?: PortableWriteCoordinator) {}
   private async qualifications() { return (await this.store.list<StoredQualification>("TrainerQualification")).map((item) => item.data); }
   private async engine() { return new InMemoryTrainerRepository(this.people, { append: async (event) => ({ ...event, id: "validation", timestamp: "" }), list: async () => [] }, false, await this.qualifications(), []); }
   async list(options?: TrainerListOptions) { return (await this.engine()).list(options); }
@@ -165,27 +169,36 @@ export class PortableTrainerRepository implements TrainerRepository {
   async listDocuments(personId: string) { return (await this.store.list<StoredDocument>("TrainerDocument", { parentId: personId })).map(({ data }) => documentMeta(data)); }
   async listAllDocuments() { return (await this.store.list<StoredDocument>("TrainerDocument")).map(({ data }) => documentMeta(data)); }
   async addDocument(personId: string, input: TrainerDocumentInput, actorUserId: string) {
-    if (!await this.people.findById(personId)) throw new Error("La persona seleccionada no existe");
-    const id = crypto.randomUUID(); const uploaded = await (await documents()).upload(`trainers/${personId}`, `${id}-${input.fileName}`, input.mimeType, input.content);
+    const person = await this.people.findById(personId);
+    if (!person?.active) throw new Error("La persona seleccionada no existe o está inactiva");
+    assertFileUploadEnvelope(input.fileName, input.content.byteLength, await this.listDocuments(personId));
+    validateFileUploadContent(input.fileName, input.content);
+    const id = crypto.randomUUID();
+    await this.writes?.externalWrite({ model: "TrainerDocument", id, action: "create" });
+    const uploaded = await (await documents()).upload(`trainers/${personId}`, `${id}-${input.fileName}`, input.mimeType, input.content);
     const meta: TrainerDocumentMeta = { id, personId, fileName: input.fileName, mimeType: input.mimeType, sizeBytes: input.content.byteLength, uploadedByUserId: actorUserId, createdAt: new Date().toISOString() };
-    try { await this.store.create("TrainerDocument", id, { ...meta, driveItemId: uploaded.id, driveETag: uploaded.eTag }, { parentId: personId }); }
+    try { await this.store.create("TrainerDocument", id, { ...meta, driveItemId: uploaded.id, driveETag: uploaded.eTag, sha256: createHash("sha256").update(input.content).digest("hex") }, { parentId: personId }); }
     catch (error) { await (await documents()).delete(uploaded.id, uploaded.eTag); throw error; }
     await this.audit.append({ actorUserId, entityType: "TRAINER_DOCUMENT", entityId: id, action: "TRAINER_DOCUMENT_ADDED", afterJson: meta }); return clone(meta);
   }
   async getDocument(documentId: string): Promise<TrainerDocumentContent | undefined> {
     const row = await this.store.get<StoredDocument>("TrainerDocument", documentId); if (!row) return undefined;
     const response = await (await documents()).download(row.data.driveItemId); const meta = documentMeta(row.data);
-    return { ...clone(meta), content: Buffer.from(await response.arrayBuffer()) };
+    const content = Buffer.from(await response.arrayBuffer());
+    if (content.byteLength !== row.data.sizeBytes || (row.data.sha256 && createHash("sha256").update(content).digest("hex") !== row.data.sha256)) throw new Error("El documento recuperado no supera la comprobación de integridad.");
+    return { ...clone(meta), content };
   }
   async removeDocument(documentId: string, actorUserId: string) {
     const row = await this.store.get<StoredDocument>("TrainerDocument", documentId); if (!row) return undefined;
-    const { driveItemId, driveETag, ...meta } = row.data; await (await documents()).delete(driveItemId, driveETag); await this.store.delete("TrainerDocument", row);
+    const { driveItemId, driveETag } = row.data; const meta = documentMeta(row.data);
+    await this.writes?.externalWrite({ model: "TrainerDocument", id: documentId, action: "delete" });
+    await (await documents()).delete(driveItemId, driveETag); await this.store.delete("TrainerDocument", row);
     await this.audit.append({ actorUserId, entityType: "TRAINER_DOCUMENT", entityId: documentId, action: "TRAINER_DOCUMENT_REMOVED", beforeJson: meta }); return clone(meta);
   }
 }
 
 export class PortableDocumentControlRepository implements DocumentControlRepository {
-  constructor(private readonly store: PortableEntityStore, private readonly audit: AuditEventRepository) {}
+  constructor(private readonly store: PortableEntityStore, private readonly audit: AuditEventRepository, private readonly writes?: PortableWriteCoordinator) {}
   async findBySessionId(sessionId: string) { return clone((await this.store.findUnique<DocumentControl>("DocumentControl", sessionId))?.data); }
   async findBySessionIds(ids: string[]) { const wanted = new Set(ids); return (await this.store.list<DocumentControl>("DocumentControl")).map((x) => x.data).filter((x) => wanted.has(x.sessionId)).map(clone); }
   async upsert(sessionId: string, input: DocumentControlInput, actor: CurrentUser | string) {
@@ -198,14 +211,30 @@ export class PortableDocumentControlRepository implements DocumentControlReposit
   async findAttachmentsBySessionId(sessionId: string) { return (await this.store.list<StoredAttachment>("DocumentControlAttachment", { parentId: sessionId })).map(({ data }) => documentMeta(data)); }
   async findAttachmentsBySessionIds(ids: string[]) { const values = await Promise.all(ids.map((id) => this.findAttachmentsBySessionId(id))); return values.flat().sort((a, b) => b.createdAt.localeCompare(a.createdAt)); }
   async addAttachment(sessionId: string, input: DocumentControlAttachmentInput, actor: CurrentUser | string) {
+    assertFileUploadEnvelope(input.fileName, input.content.byteLength, await this.findAttachmentsBySessionId(sessionId));
+    validateFileUploadContent(input.fileName, input.content);
     const actorId = typeof actor === "string" ? actor : actor.id; let control = await this.findBySessionId(sessionId);
     if (!control) control = await this.upsert(sessionId, { signedAnnexIII: false, trainingMaterialArchived: false, evaluationEvidenceArchived: false, dossierPrinted: false }, actor);
-    const id = crypto.randomUUID(); const uploaded = await (await documents()).upload(`sessions/${sessionId}`, `${id}-${input.fileName}`, input.mimeType, input.content);
+    const id = crypto.randomUUID();
+    await this.writes?.externalWrite({ model: "DocumentControlAttachment", id, action: "create" });
+    const uploaded = await (await documents()).upload(`sessions/${sessionId}`, `${id}-${input.fileName}`, input.mimeType, input.content);
     const meta: DocumentControlAttachmentMeta = { id, documentControlId: control.id, sessionId, category: input.category, fileName: input.fileName, mimeType: input.mimeType, sizeBytes: input.content.byteLength, uploadedByUserId: actorId, createdAt: new Date().toISOString() };
-    try { await this.store.create("DocumentControlAttachment", id, { ...meta, driveItemId: uploaded.id, driveETag: uploaded.eTag }, { parentId: sessionId, status: input.category }); }
+    try { await this.store.create("DocumentControlAttachment", id, { ...meta, driveItemId: uploaded.id, driveETag: uploaded.eTag, sha256: createHash("sha256").update(input.content).digest("hex") }, { parentId: sessionId, status: input.category }); }
     catch (error) { await (await documents()).delete(uploaded.id, uploaded.eTag); throw error; }
     await this.audit.append({ actorUserId: actorId, entityType: "DOCUMENT_CONTROL_ATTACHMENT", entityId: id, action: "DOCUMENT_CONTROL_ATTACHMENT_ADDED", afterJson: meta, contextJson: { sessionId, category: input.category } }); return clone(meta);
   }
-  async getAttachment(id: string) { const row = await this.store.get<StoredAttachment>("DocumentControlAttachment", id); if (!row) return undefined; const response = await (await documents()).download(row.data.driveItemId); const meta = documentMeta(row.data); return { ...clone(meta), content: Buffer.from(await response.arrayBuffer()) }; }
-  async removeAttachment(id: string, actor: CurrentUser | string) { const row = await this.store.get<StoredAttachment>("DocumentControlAttachment", id); if (!row) return undefined; const actorId = typeof actor === "string" ? actor : actor.id; const { driveItemId, driveETag, ...meta } = row.data; await (await documents()).delete(driveItemId, driveETag); await this.store.delete("DocumentControlAttachment", row); await this.audit.append({ actorUserId: actorId, entityType: "DOCUMENT_CONTROL_ATTACHMENT", entityId: id, action: "DOCUMENT_CONTROL_ATTACHMENT_REMOVED", beforeJson: meta }); return clone(meta); }
+  async getAttachment(id: string) {
+    const row = await this.store.get<StoredAttachment>("DocumentControlAttachment", id); if (!row) return undefined;
+    const response = await (await documents()).download(row.data.driveItemId); const meta = documentMeta(row.data);
+    const content = Buffer.from(await response.arrayBuffer());
+    if (content.byteLength !== row.data.sizeBytes || (row.data.sha256 && createHash("sha256").update(content).digest("hex") !== row.data.sha256)) throw new Error("El documento recuperado no supera la comprobación de integridad.");
+    return { ...clone(meta), content };
+  }
+  async removeAttachment(id: string, actor: CurrentUser | string) {
+    const row = await this.store.get<StoredAttachment>("DocumentControlAttachment", id); if (!row) return undefined;
+    const actorId = typeof actor === "string" ? actor : actor.id; const { driveItemId, driveETag } = row.data; const meta = documentMeta(row.data);
+    await this.writes?.externalWrite({ model: "DocumentControlAttachment", id, action: "delete" });
+    await (await documents()).delete(driveItemId, driveETag); await this.store.delete("DocumentControlAttachment", row);
+    await this.audit.append({ actorUserId: actorId, entityType: "DOCUMENT_CONTROL_ATTACHMENT", entityId: id, action: "DOCUMENT_CONTROL_ATTACHMENT_REMOVED", beforeJson: meta }); return clone(meta);
+  }
 }

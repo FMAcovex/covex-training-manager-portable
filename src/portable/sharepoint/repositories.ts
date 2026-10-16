@@ -134,7 +134,7 @@ async function catalogs(store: PortableEntityStore): Promise<TrainingCatalogs & 
 }
 
 export class PortableTrainingRepository implements TrainingRepository {
-  constructor(private readonly store: PortableEntityStore, private readonly audit: AuditEventRepository) {}
+  constructor(private readonly store: PortableEntityStore, private readonly audit: AuditEventRepository, private readonly historicalReferences: () => boolean = () => false) {}
 
   async list(filters: TrainingFilters = {}) {
     return (await this.store.list<Training>("Training"))
@@ -157,6 +157,16 @@ export class PortableTrainingRepository implements TrainingRepository {
       if (!requested) continue;
       const row = rows.find((item) => item.id === requested);
       if (!row || (!row.active && requested !== prior)) throw new TrainingCatalogReferenceError(`El ${label} seleccionado no existe o está inactivo`);
+    }
+    const previousDepartments = new Set(existing?.targetDepartmentIds ?? []);
+    for (const departmentId of new Set(input.targetDepartmentIds ?? [])) {
+      const department = refs.departments.find((item) => item.id === departmentId);
+      if (!department || (!department.active && !previousDepartments.has(departmentId))) throw new TrainingCatalogReferenceError("Todos los departamentos destinatarios deben existir y estar activos");
+    }
+    const previousTrainers = new Set(existing?.plannedTrainerPersonIds ?? (existing?.plannedTrainerPersonId ? [existing.plannedTrainerPersonId] : []));
+    for (const personId of new Set(input.plannedTrainerPersonIds ?? (input.plannedTrainerPersonId ? [input.plannedTrainerPersonId] : []))) {
+      const trainer = await this.store.get<Person>("Person", personId);
+      if (!trainer || (!trainer.data.active && !previousTrainers.has(personId) && !this.historicalReferences())) throw new TrainingCatalogReferenceError("Todos los formadores deben existir y estar activos");
     }
   }
 

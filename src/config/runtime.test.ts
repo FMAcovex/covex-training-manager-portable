@@ -45,6 +45,10 @@ describe("configuración de runtime", () => {
     } as NodeJS.ProcessEnv)).toThrow("AUTH_MODE=demo no está permitido en producción");
   });
 
+  it("impide persistencia demo con identidad corporativa en producción", () => {
+    expect(() => readRuntimeConfiguration({ APP_ENV: "production", AUTH_MODE: "app-service", PERSISTENCE_PROVIDER: "demo" } as NodeJS.ProcessEnv)).toThrow("PERSISTENCE_PROVIDER=demo");
+  });
+
   it("acepta configuración productiva completa", () => {
     const env = {
       APP_ENV: "production",

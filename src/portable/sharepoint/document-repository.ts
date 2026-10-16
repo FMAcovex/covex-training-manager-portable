@@ -82,8 +82,10 @@ export class SharePointDocumentRepository {
     if (content.byteLength === 0 || content.byteLength > MAX_DOCUMENT_BYTES) {
       throw new Error("El documento debe tener entre 1 byte y 250 MB.");
     }
-    await this.ensureFolder(["COVEX-Training-Manager", ...trainingId.split("/").filter(Boolean)]);
-    const path = ["COVEX-Training-Manager", trainingId, validatedFileName].map(segment).join("/");
+    const folders = trainingId.split("/");
+    if (folders.some((part) => !part || part !== safeFileName(part))) throw new Error("La ruta del documento no es válida.");
+    await this.ensureFolder(["COVEX-Training-Manager", ...folders]);
+    const path = ["COVEX-Training-Manager", ...folders, validatedFileName].map(segment).join("/");
     const uploadBody = new Uint8Array(content).buffer;
     if (content.byteLength <= MAX_SIMPLE_UPLOAD_BYTES) {
       const item = await this.graph.requestJson<GraphDriveItem>(
@@ -111,10 +113,14 @@ export class SharePointDocumentRepository {
         },
         body: new Uint8Array(chunk).buffer,
       });
-      if (response.status === 200 || response.status === 201) result = await response.json() as GraphDriveItem;
+      if (response.status === 200 || response.status === 201) {
+        if (endExclusive !== content.byteLength) throw new Error("SharePoint finalizó la carga antes de recibir todo el documento.");
+        result = await response.json() as GraphDriveItem;
+      }
       else if (response.status !== 202) throw new Error(`Estado inesperado ${response.status} durante la carga por bloques.`);
     }
     if (!result) throw new Error("La carga por bloques finalizó sin metadatos del documento.");
+    if (result.size !== content.byteLength) throw new Error("El tamaño del documento archivado no coincide con el original.");
     return toDocument(result);
   }
 

@@ -40,18 +40,21 @@ export class PortableUnitOfWork {
       kind, idempotencyKey, state: "PREPARING", completedSteps: [], startedAt: new Date().toISOString(),
     }, { uniqueKey: idempotencyKey, status: "PREPARING", correlationId });
     const completed: PortableOperationStep[] = [];
+    let executing: PortableOperationStep | undefined;
     try {
       operation = await this.advance(operation, { ...operation.data, state: "RUNNING" });
       for (const step of steps) {
+        executing = step;
         await step.execute();
         completed.push(step);
+        executing = undefined;
         operation = await this.advance(operation, { ...operation.data, completedSteps: completed.map((item) => item.name) });
       }
       await this.advance(operation, { ...operation.data, state: "COMMITTED", finishedAt: new Date().toISOString() });
       return { correlationId, replay: false };
     } catch (error) {
       let compensationFailed = false;
-      const failed = steps.find((step) => !operation.data.completedSteps.includes(step.name));
+      const failed = executing;
       if (failed) {
         if (!failed.compensate) compensationFailed = true;
         else try { await failed.compensate(); } catch { compensationFailed = true; }
@@ -61,13 +64,13 @@ export class PortableUnitOfWork {
         try { await step.compensate(); } catch { compensationFailed = true; }
       }
       const failedStep = failed?.name;
-      await this.advance(operation, {
+      try { await this.advance(operation, {
         ...operation.data,
         state: compensationFailed ? "NEEDS_RECONCILIATION" : "ABORTED",
         failedStep,
         errorCode: error instanceof Error ? error.name : "UnknownError",
         finishedAt: new Date().toISOString(),
-      });
+      }); } catch { throw new PortablePartialWriteError(correlationId); }
       if (compensationFailed) throw new PortablePartialWriteError(correlationId);
       throw error;
     }

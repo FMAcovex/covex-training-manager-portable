@@ -338,3 +338,11 @@ D-003/D-042 quedan complementadas para este alojamiento. SO, DNS/URL, certificad
 H10A conserva Next.js y añade un shell Electron que sirve la compilación standalone exclusivamente por loopback. La identidad es un cliente público Microsoft Entra mediante MSAL Browser, Authorization Code + PKCE y permisos delegados; no existe secreto de cliente. El prototipo usa una SharePoint List para siete campos de Formación y una biblioteca para documentos, con ETags obligatorios, reintentos acotados y errores explícitos.
 
 Esta prueba no sustituye PostgreSQL ni cambia los repositorios funcionales existentes. La equivalencia de transacciones, numeración, relaciones, roles, auditoría, anexos y migración de los 22 modelos se reserva a una decisión H10B posterior a la validación corporativa. Hasta entonces solo se usarán datos ficticios y recursos piloto restringidos.
+
+## D-063 — H10B: proveedor portable y puerta de aceptación corporativa
+
+Por petición expresa del responsable (Issue #3), se implementan offline los adaptadores `portable-sharepoint` para los 22 modelos, manteniendo UI Next.js y contratos de repositorio. Electron inicia la aplicación local con autenticación `portable-entra` y persistencia SharePoint; `server-postgres` conserva H9A y `demo` queda limitado a desarrollo. Esta petición autoriza implementación y pruebas sintéticas antes del piloto real H10A, pero no aceptar H10B ni tratar datos corporativos sin IT.
+
+Las escrituras se serializan entre instalaciones mediante bloqueo ETag y journal previo a las mutaciones. Tras error incierto o interrupción se exige reconciliación; no hay recuperación por caducidad del bloqueo ni promesa de transacciones SQL. Las secuencias reservadas no se reutilizan. Los nuevos adjuntos conservan SHA-256. Los límites y procedimiento están en `H10B_SECURITY_AND_RECOVERY.md`.
+
+La aplicación pública con permisos delegados no puede impedir por sí sola llamadas Graph externas ni garantizar autenticidad/inmutabilidad GMP de auditoría. Permisos corporativos efectivos o una autoridad de escritura aprobada son una puerta de aceptación explícita. No se amplían permisos ni se instala esa alternativa de forma automática. Código probado con mocks no equivale a conexión COVEX validada.

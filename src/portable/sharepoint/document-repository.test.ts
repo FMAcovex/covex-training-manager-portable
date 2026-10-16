@@ -27,6 +27,14 @@ describe("SharePointDocumentRepository", () => {
     await expect(repository.download("doc-1")).resolves.toBe(response);
   });
 
+  it("preserves validated nested folder segments without encoding separators", async () => {
+    const graph = { request: vi.fn(), requestUpload: vi.fn(), requestJson: vi.fn().mockResolvedValue({ id: "doc-1", name: "evidence.txt", size: 3, eTag: '"etag"' }) };
+    const repository = new SharePointDocumentRepository(graph, "site", "drive");
+    await repository.upload("sessions/synthetic-session", "evidence.txt", "text/plain", new Uint8Array([1, 2, 3]));
+    expect(graph.requestJson).toHaveBeenLastCalledWith("/sites/site/drives/drive/root:/COVEX-Training-Manager/sessions/synthetic-session/evidence.txt:/content?@microsoft.graph.conflictBehavior=fail", expect.objectContaining({ method: "PUT" }));
+    await expect(repository.upload("sessions/../escape", "evidence.txt", "text/plain", new Uint8Array([1]))).rejects.toThrow("nombre");
+  });
+
   it("rejects path traversal and empty files", async () => {
     const graph = { request: vi.fn(), requestJson: vi.fn(), requestUpload: vi.fn() };
     const repository = new SharePointDocumentRepository(graph, "site", "drive");

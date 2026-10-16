@@ -53,6 +53,13 @@ describe("GraphClient", () => {
     await expect(client.requestJson("/sites/site/lists/list/items/1", { method: "PATCH" })).rejects.toBeInstanceOf(GraphConflictError);
   });
 
+  it("does not blindly repeat a POST after an uncertain server failure", async () => {
+    const fetcher = vi.fn().mockResolvedValue(json({ error: { code: "serviceUnavailable" } }, { status: 503 }));
+    const client = new GraphClient("delegated-token-value-long-enough", { fetch: fetcher, sleep: vi.fn() });
+    await expect(client.requestJson("/sites/site/lists/list/items", { method: "POST", body: "{}" })).rejects.toMatchObject({ status: 503 });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it("rejects pagination outside graph.microsoft.com", async () => {
     const fetcher = vi.fn().mockResolvedValue(json({ value: [], "@odata.nextLink": "https://attacker.invalid/collect" }));
     const client = new GraphClient("delegated-token-value-long-enough", { fetch: fetcher });

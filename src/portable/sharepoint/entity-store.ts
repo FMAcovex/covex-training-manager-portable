@@ -2,6 +2,7 @@ import { GraphClient, GraphConflictError, GraphRequestError } from "@/portable/g
 import { readPortableServerConfiguration } from "@/portable/config";
 import { portableAccessToken } from "@/portable/auth/server-session";
 import { portableListName, type PortableListModel } from "@/portable/sharepoint/schema";
+import { createHash } from "node:crypto";
 
 const MAX_PAYLOAD_LENGTH = 55_000;
 
@@ -47,6 +48,7 @@ type GraphItem = {
 
 function segment(value: string) { return encodeURIComponent(value); }
 function escapeOData(value: string) { return value.replace(/'/g, "''"); }
+function uniqueIndex(value: string) { return value.length <= 255 ? value : `sha256:${createHash("sha256").update(value).digest("hex")}`; }
 
 function fieldsFor<T>(id: string, data: T, indexes: PortableRecordIndexes = {}) {
   const payload = JSON.stringify(data);
@@ -54,7 +56,7 @@ function fieldsFor<T>(id: string, data: T, indexes: PortableRecordIndexes = {}) 
   return {
     Title: id.slice(0, 255),
     CovexId: id,
-    CovexUniqueKey: indexes.uniqueKey ?? null,
+    CovexUniqueKey: uniqueIndex(indexes.uniqueKey ?? id),
     CovexParentId: indexes.parentId ?? null,
     CovexYear: indexes.year ?? null,
     CovexStatus: indexes.status ?? null,
@@ -121,6 +123,7 @@ export class GraphPortableEntityStore implements PortableEntityStore {
   }
 
   async list<T>(model: PortableListModel, query: PortableQuery = {}) {
+    if (query.uniqueKey !== undefined) query = { ...query, uniqueKey: uniqueIndex(query.uniqueKey) };
     const graph = await this.graph();
     let path = `${await this.itemsPath(model)}?$expand=fields&$top=200`;
     const serverFilter = query.ids?.length === 1
@@ -162,7 +165,7 @@ export class GraphPortableEntityStore implements PortableEntityStore {
         body: JSON.stringify({ fields: fieldsFor(id, data, indexes) }),
       });
     } catch (error) {
-      if (error instanceof GraphRequestError && (error.status === 400 || error.status === 409)) throw new GraphConflictError("El registro o su clave única ya existen en SharePoint.");
+      if (error instanceof GraphRequestError && error.status === 409) throw new GraphConflictError("El registro o su clave única ya existen en SharePoint.");
       throw error;
     }
     const created = await this.get<T>(model, id);
@@ -180,7 +183,7 @@ export class GraphPortableEntityStore implements PortableEntityStore {
         body: JSON.stringify(fieldsFor(current.id, data, indexes)),
       });
     } catch (error) {
-      if (error instanceof GraphRequestError && (error.status === 400 || error.status === 409)) throw new GraphConflictError("La clave única ya existe en SharePoint.");
+      if (error instanceof GraphRequestError && error.status === 409) throw new GraphConflictError("La clave única ya existe en SharePoint.");
       throw error;
     }
     const updated = await this.get<T>(model, current.id);
@@ -205,6 +208,7 @@ export class InMemoryPortableEntityStore implements PortableEntityStore {
     return rows;
   }
   async list<T>(model: PortableListModel, query: PortableQuery = {}) {
+    if (query.uniqueKey !== undefined) query = { ...query, uniqueKey: uniqueIndex(query.uniqueKey) };
     const ids = query.ids ? new Set(query.ids) : undefined;
     return structuredClone([...this.rows(model).values()].filter((item) =>
       (!ids || ids.has(item.id))
@@ -222,6 +226,7 @@ export class InMemoryPortableEntityStore implements PortableEntityStore {
   }
   async create<T>(model: PortableListModel, id: string, data: T, indexes: PortableRecordIndexes = {}) {
     const rows = this.rows(model);
+    indexes = { ...indexes, uniqueKey: uniqueIndex(indexes.uniqueKey ?? id) };
     if (rows.has(id) || (indexes.uniqueKey && [...rows.values()].some((item) => item.uniqueKey === indexes.uniqueKey))) {
       throw new GraphConflictError("El registro o su clave única ya existen.");
     }
@@ -231,6 +236,7 @@ export class InMemoryPortableEntityStore implements PortableEntityStore {
   }
   async update<T>(model: PortableListModel, current: PortableRecord<unknown>, data: T, indexes: PortableRecordIndexes = {}) {
     const rows = this.rows(model); const stored = rows.get(current.id);
+    indexes = { ...indexes, uniqueKey: uniqueIndex(indexes.uniqueKey ?? current.id) };
     if (!stored || stored.eTag !== current.eTag) throw new GraphConflictError();
     if (indexes.uniqueKey && [...rows.values()].some((item) => item.id !== current.id && item.uniqueKey === indexes.uniqueKey)) throw new GraphConflictError("La clave única ya existe.");
     const record: PortableRecord<T> = { id: current.id, data: structuredClone(data), itemId: current.itemId, eTag: `\"${++this.version}\"`, updatedAt: new Date().toISOString(), ...indexes };

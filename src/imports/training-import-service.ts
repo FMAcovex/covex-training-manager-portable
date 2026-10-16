@@ -334,6 +334,13 @@ export async function commitTrainingImport(buffer: Buffer, fileName: string, raw
   const { preview, resolved } = build(parsed, fileName, await references(), mappings);
   if (!preview.canCommit) throw new TrainingImportValidationError(preview);
   if (shouldUsePersistentRepositories()) return commitPersistent(resolved, preview, actor);
+  if (shouldUsePortableSharePoint()) {
+    return getPortableProvider().writes.execute("TRAINING_IMPORT", () => commitRepositoryImport(resolved, preview, actor, mappings));
+  }
+  return commitRepositoryImport(resolved, preview, actor, mappings);
+}
+
+async function commitRepositoryImport(resolved: ResolvedTrainingImport, preview: TrainingImportPreview, actor: CurrentUser, mappings: TrainingImportMappings): Promise<TrainingImportResult> {
   const portable = shouldUsePortableSharePoint();
   const auditRepository = getAuditEventRepository();
   const portablePrior = portable ? await getPortableProvider().store.findUnique("TrainingImportRun", resolved.fingerprint) : undefined;

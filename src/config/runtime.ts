@@ -42,6 +42,7 @@ export function readRuntimeConfiguration(env: NodeJS.ProcessEnv = process.env): 
   const errors: string[] = [];
   if (production && persistenceProvider === "server-postgres" && !env.DATABASE_URL?.trim()) errors.push("DATABASE_URL es obligatoria en producción con server-postgres");
   if (production && rawAuthMode === "demo") errors.push("AUTH_MODE=demo no está permitido en producción");
+  if (production && persistenceProvider === "demo") errors.push("PERSISTENCE_PROVIDER=demo no está permitido en producción");
   if (persistenceProvider === "portable-sharepoint" && rawAuthMode !== "portable-entra") errors.push("portable-sharepoint exige AUTH_MODE=portable-entra");
   if (rawAuthMode === "portable-entra" && persistenceProvider !== "portable-sharepoint") errors.push("AUTH_MODE=portable-entra exige PERSISTENCE_PROVIDER=portable-sharepoint");
   if (rawAuthMode === "entra-proxy") {
@@ -56,7 +57,10 @@ export function readRuntimeConfiguration(env: NodeJS.ProcessEnv = process.env): 
     for (const name of ["PORTABLE_ENTRA_TENANT_ID", "PORTABLE_ENTRA_CLIENT_ID"]) {
       if (!uuid.test(env[name] ?? "")) errors.push(`${name} debe ser un UUID corporativo`);
     }
-    if (!env.PORTABLE_ENTRA_REDIRECT_URI?.startsWith("http://127.0.0.1:")) errors.push("PORTABLE_ENTRA_REDIRECT_URI debe usar loopback 127.0.0.1");
+    try {
+      const redirect = new URL(env.PORTABLE_ENTRA_REDIRECT_URI ?? "");
+      if (redirect.protocol !== "http:" || redirect.hostname !== "127.0.0.1" || !redirect.port || redirect.username || redirect.password) throw new Error("loopback");
+    } catch { errors.push("PORTABLE_ENTRA_REDIRECT_URI debe usar loopback 127.0.0.1"); }
     for (const name of ["PORTABLE_SHAREPOINT_SITE_ID", "PORTABLE_SHAREPOINT_DOCUMENT_DRIVE_ID", "PORTABLE_SHAREPOINT_LIST_PREFIX"]) {
       if (!env[name]?.trim()) errors.push(`${name} es obligatorio en modo portable-sharepoint`);
     }

@@ -100,7 +100,10 @@ export class GraphClient {
       const response = await this.fetcher(url, { ...init, headers });
       if (response.ok) return response;
 
-      if (RETRYABLE_STATUSES.has(response.status) && attempt < this.maxRetries) {
+      // POST/PATCH/DELETE may already have reached SharePoint. A blind retry can
+      // duplicate an item or obscure an acknowledged write; the journal handles uncertainty.
+      const repeatable = ["GET", "HEAD"].includes((init.method ?? "GET").toUpperCase());
+      if (repeatable && RETRYABLE_STATUSES.has(response.status) && attempt < this.maxRetries) {
         await this.sleep(retryDelay(response, attempt));
         continue;
       }

@@ -4,8 +4,9 @@ import { InMemoryPortableEntityStore } from "./entity-store";
 import { createPortableProvider } from "./provider";
 import { PORTABLE_PRISMA_MODELS, assertCompletePortableSchema } from "./schema";
 import { PortablePartialWriteError, PortableUnitOfWork } from "./unit-of-work";
+import { readFileSync } from "node:fs";
 
-const actor = { id: "user-admin", name: "Admin sintético", role: "ADMIN" as const };
+const actor = { id: "user-admin", displayName: "Admin sintético", role: "ADMIN" as const };
 
 async function seed(store: InMemoryPortableEntityStore) {
   await store.create("Department", "quality", { id: "quality", code: "GC", name: "Calidad", active: true }, { uniqueKey: "GC" });
@@ -19,6 +20,8 @@ describe("H10B SharePoint core", () => {
     expect(assertCompletePortableSchema()).toBe(true);
     expect(PORTABLE_PRISMA_MODELS).toHaveLength(22);
     expect(new Set(PORTABLE_PRISMA_MODELS).size).toBe(22);
+    const prismaModels = [...readFileSync("prisma/schema.prisma", "utf8").matchAll(/^model (\w+) \{/gm)].map((match) => match[1]);
+    expect([...PORTABLE_PRISMA_MODELS].sort()).toEqual(prismaModels.sort());
   });
 
   it("rejects stale ETags from a second user", async () => {
@@ -48,10 +51,16 @@ describe("H10B SharePoint core", () => {
       content: "Contenido sintético", targetGroup: "Grupo sintético", targetDepartmentIds: ["quality"], plannedTrainerPersonIds: [person.id],
       evaluationMethodId: "test", aptitudeCriterion: "Apto", frequencyMonths: 12,
     };
-    const [first, second] = await Promise.all([
+    const attempts = await Promise.allSettled([
       provider.trainings.create(input, actor.id),
       provider.trainings.create({ ...input, name: "Curso sintético 2" }, actor.id),
     ]);
+    expect(attempts.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(attempts.find((result) => result.status === "rejected")).toMatchObject({ reason: expect.any(GraphConflictError) });
+    const accepted = attempts.find((result) => result.status === "fulfilled");
+    if (!accepted || accepted.status !== "fulfilled") throw new Error("Falta la operación aceptada");
+    const first = accepted.value;
+    const second = await provider.trainings.create({ ...input, name: "Reintento explícito del segundo usuario" }, actor.id);
     expect(new Set([first.code, second.code])).toEqual(new Set(["FOR-2026-0001", "FOR-2026-0002"]));
     const session = await provider.sessions.create({ trainingId: first.id, plannedDate: "2026-12-01", trainerPersonIds: [person.id], durationMinutes: 60, attendeePersonIds: [person.id] }, actor);
     const finalized = await provider.sessions.finalize(session.id, { executionDate: "2026-12-01", initializeDefaults: true, attendances: [] }, actor);

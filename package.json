@@ -22,6 +22,7 @@
     "deployment:verify": "node --test tests/deployment/preflight.test.mjs",
     "portable:dev": "node scripts/portable/run-electron-dev.mjs",
     "portable:verify": "vitest run src/portable",
+    "portable:smoke": "node tests/portable/smoke.mjs",
     "portable:provision:dry-run": "node --import tsx scripts/portable/provision-sharepoint.ts --dry-run",
     "portable:provision": "node --import tsx scripts/portable/provision-sharepoint.ts",
     "portable:package:win": "pnpm build && node scripts/portable/package-windows.mjs"
@@ -45,6 +46,7 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.5.4",
     "eslint-plugin-react-hooks": "^5.2.0",
+    "playwright-core": "1.57.0",
     "prisma": "^6.16.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
