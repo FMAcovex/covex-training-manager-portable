@@ -22,6 +22,8 @@
     "deployment:verify": "node --test tests/deployment/preflight.test.mjs",
     "portable:dev": "node scripts/portable/run-electron-dev.mjs",
     "portable:verify": "vitest run src/portable",
+    "portable:provision:dry-run": "node --import tsx scripts/portable/provision-sharepoint.ts --dry-run",
+    "portable:provision": "node --import tsx scripts/portable/provision-sharepoint.ts",
     "portable:package:win": "pnpm build && node scripts/portable/package-windows.mjs"
   },
   "dependencies": {

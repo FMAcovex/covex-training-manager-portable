@@ -25,9 +25,9 @@ En modo demo se usan únicamente datos ficticios. Personas, catálogos, formacio
 
 ## Preparación de producción
 
-Producción requiere PostgreSQL y autenticación corporativa Microsoft Entra. Azure App Service sigue siendo un escenario soportado, pero no es obligatorio: la aplicación también dispone de empaquetado Docker para un servidor/VM interno. H9A incorpora Entra por proxy OIDC para servidor privado; IT debe configurar y comprobar el tenant real antes de abrir acceso.
+Producción requiere autenticación corporativa Microsoft Entra. El modo servidor H9A usa PostgreSQL; la edición H10B usa SharePoint y no necesita PostgreSQL ni servidor privado para el usuario. IT debe configurar y comprobar el tenant real antes de abrir acceso.
 
-- APP_ENV=production obliga a usar PostgreSQL.
+- `PERSISTENCE_PROVIDER=server-postgres` exige PostgreSQL; `portable-sharepoint` lo sustituye por Microsoft Graph.
 - AUTH_MODE=app-service usa la identidad autenticada por Azure App Service y solo es válido detrás de ese perímetro.
 - AUTH_MODE=entra-proxy utiliza el gateway OIDC con JWT verificado para el servidor privado de H9A.
 - La aplicación no gestiona contraseñas.
@@ -51,6 +51,16 @@ H10A añade una prueba vertical independiente en `/portable-poc`: conserva la in
 4. Ejecutar `pnpm portable:package:win` para generar el paquete x64 en `dist-portable/`.
 
 El análisis de los 22 modelos y la frontera de la prueba están en [`docs/H10A_PORTABLE_AUDIT.md`](docs/H10A_PORTABLE_AUDIT.md). Los resultados y limitaciones se registran en [`docs/H10A_RESULT.md`](docs/H10A_RESULT.md).
+
+## H10B · edición portable completa
+
+H10B conecta los repositorios funcionales a 22 listas SharePoint y la documentación a una biblioteca, manteniendo los flujos y reglas existentes. Añade autenticación portable real, roles, auditoría, concurrencia ETag, numeración, operaciones reconciliables, importaciones, formadores cualificados, integridad y Anexos III/IV/V.
+
+- Resultado y matriz 22/22: [`docs/H10B_RESULT.md`](docs/H10B_RESULT.md).
+- Configuración, permisos y piloto obligatorio: [`docs/H10B_IT_REQUIREMENTS.md`](docs/H10B_IT_REQUIREMENTS.md).
+- Plan de listas sin cambios: `PORTABLE_SHAREPOINT_SITE_ID=... pnpm portable:provision:dry-run`.
+
+La conexión con COVEX continúa no validada hasta completar el piloto de IT; el modo demo nunca se usa para datos corporativos.
 
 ## Entrega a IT
 

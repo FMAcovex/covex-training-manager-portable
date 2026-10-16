@@ -5,7 +5,8 @@ import { formatSessionCode, type AttendanceResult, type AttendanceStatus } from 
 import { formatTrainingCode, type TrainingInput } from "@/domain/training";
 import type { CatalogItem } from "@/domain/training-catalogs";
 import { getAuditEventRepository } from "@/administration/repositories";
-import { shouldUsePersistentRepositories } from "@/config/runtime";
+import { shouldUsePersistentRepositories, shouldUsePortableSharePoint } from "@/config/runtime";
+import { getPortableProvider } from "@/portable/sharepoint/provider";
 import { prisma } from "@/server/prisma";
 import { getPeopleRepository } from "@/server/people-repositories";
 import { getSessionRepository } from "@/server/session-repositories";
@@ -333,13 +334,15 @@ export async function commitTrainingImport(buffer: Buffer, fileName: string, raw
   const { preview, resolved } = build(parsed, fileName, await references(), mappings);
   if (!preview.canCommit) throw new TrainingImportValidationError(preview);
   if (shouldUsePersistentRepositories()) return commitPersistent(resolved, preview, actor);
+  const portable = shouldUsePortableSharePoint();
   const auditRepository = getAuditEventRepository();
+  const portablePrior = portable ? await getPortableProvider().store.findUnique("TrainingImportRun", resolved.fingerprint) : undefined;
   const priorImports = await auditRepository.list({ action: "TRAINING_IMPORT_COMPLETED", limit: 200 });
   const alreadyImported = priorImports.some((event) => {
     const context = event.contextJson as { sourceFingerprint?: string } | undefined;
     return context?.sourceFingerprint === resolved.fingerprint;
   });
-  if (demoFingerprints.has(resolved.fingerprint) || alreadyImported) throw new TrainingImportConflictError("Este archivo ya se ha importado en la demostración");
+  if (portablePrior || demoFingerprints.has(resolved.fingerprint) || alreadyImported) throw new TrainingImportConflictError(portable ? "Este archivo ya fue importado anteriormente" : "Este archivo ya se ha importado en la demostración");
 
   const peopleRepository = getPeopleRepository();
   const trainingRepository = getTrainingRepository();
@@ -349,8 +352,8 @@ export async function commitTrainingImport(buffer: Buffer, fileName: string, raw
     const target = splitPersonKey(sourcePerson.target);
     if (target.kind === "existing") resolvedPersonIds.set(personKey("source", sourcePerson.sourceId), target.id);
     else {
-      const created = await peopleRepository.create(personInput(sourcePerson, mappings));
-      if (!sourcePerson.active) await peopleRepository.deactivate(created.id);
+      const created = await peopleRepository.create(personInput(sourcePerson, mappings), actor.id);
+      if (!sourcePerson.active) await peopleRepository.deactivate(created.id, actor.id);
       resolvedPersonIds.set(personKey("source", sourcePerson.sourceId), created.id);
     }
   }
@@ -376,6 +379,14 @@ export async function commitTrainingImport(buffer: Buffer, fileName: string, raw
   }
   demoFingerprints.add(resolved.fingerprint);
   const importId = crypto.randomUUID();
+  if (portable) await getPortableProvider().store.create("TrainingImportRun", importId, {
+    id: importId,
+    sourceFingerprint: resolved.fingerprint,
+    year: 2026,
+    actorUserId: actor.id,
+    summaryJson: preview.counts,
+    createdAt: new Date().toISOString(),
+  }, { uniqueKey: resolved.fingerprint, year: 2026, status: "COMPLETED" });
   await auditRepository.append({ actorUserId: actor.id, entityType: "TRAINING_IMPORT", entityId: importId, action: "TRAINING_IMPORT_COMPLETED", contextJson: { sourceFingerprint: resolved.fingerprint, counts: preview.counts } });
   return { importId, fingerprint: resolved.fingerprint, counts: preview.counts };
 }

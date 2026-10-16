@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { PortableConfigurationError } from "@/portable/config";
 import { GraphConflictError, GraphRequestError } from "@/portable/graph/graph-client";
+import { AuthenticationError } from "@/auth/errors";
 
 export function delegatedGraphToken(request: Request) {
   const authorization = request.headers.get("authorization") ?? "";
@@ -13,6 +14,9 @@ export function delegatedGraphToken(request: Request) {
 export function portableApiError(error: unknown) {
   if (error instanceof ZodError) {
     return NextResponse.json({ error: "Los datos no son válidos.", issues: error.issues }, { status: 400 });
+  }
+  if (error instanceof AuthenticationError) {
+    return NextResponse.json({ error: error.message }, { status: error.status });
   }
   if (error instanceof GraphConflictError) {
     return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });

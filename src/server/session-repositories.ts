@@ -4,13 +4,15 @@ import { InMemorySessionRepository, type SessionRepository } from "@/server/sess
 import { getTrainingRepository } from "@/server/training-repositories";
 import { getAuditEventRepository } from "@/administration/repositories";
 import { prisma } from "@/server/prisma";
-import { shouldUsePersistentRepositories } from "@/config/runtime";
+import { shouldUsePersistentRepositories, shouldUsePortableSharePoint } from "@/config/runtime";
+import { getPortableProvider } from "@/portable/sharepoint/provider";
 
 const globalDemoRepositories = globalThis as unknown as {
   sessionRepository?: SessionRepository;
 };
 
 export function getSessionRepository(): SessionRepository {
+  if (shouldUsePortableSharePoint()) return getPortableProvider().sessions;
   if (shouldUsePersistentRepositories()) return new PrismaSessionRepository(prisma);
   globalDemoRepositories.sessionRepository ??= new InMemorySessionRepository(
     getTrainingRepository(),

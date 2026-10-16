@@ -9,7 +9,7 @@ import {
 } from "@azure/msal-browser";
 import type { PortableClientConfiguration } from "@/portable/config";
 
-export const PORTABLE_GRAPH_SCOPES = ["User.Read", "Sites.ReadWrite.All", "Files.ReadWrite.All"];
+export const PORTABLE_GRAPH_SCOPES = ["User.Read", "Sites.Selected"];
 
 let application: PublicClientApplication | undefined;
 
@@ -25,7 +25,7 @@ async function getApplication() {
       authority: `https://login.microsoftonline.com/${config.tenantId}`,
       redirectUri: config.redirectUri,
     },
-    cache: { cacheLocation: BrowserCacheLocation.SessionStorage },
+    cache: { cacheLocation: BrowserCacheLocation.MemoryStorage },
     system: {
       loggerOptions: {
         piiLoggingEnabled: false,
@@ -52,10 +52,23 @@ export async function acquirePortableGraphToken() {
   const activeAccount = await account(client);
   try {
     const result = await client.acquireTokenSilent({ account: activeAccount, scopes: PORTABLE_GRAPH_SCOPES });
-    return { accessToken: result.accessToken, account: activeAccount };
+    return { accessToken: result.accessToken, idToken: result.idToken, account: activeAccount };
   } catch (error) {
     if (!(error instanceof InteractionRequiredAuthError)) throw error;
     const result = await client.acquireTokenPopup({ account: activeAccount, scopes: PORTABLE_GRAPH_SCOPES });
-    return { accessToken: result.accessToken, account: result.account ?? activeAccount };
+    return { accessToken: result.accessToken, idToken: result.idToken, account: result.account ?? activeAccount };
   }
+}
+
+export async function establishPortableSession() {
+  const credentials = await acquirePortableGraphToken();
+  const response = await fetch("/api/portable/session", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: credentials.accessToken, idToken: credentials.idToken }),
+  });
+  const body = await response.json().catch(() => ({})) as { error?: string };
+  if (!response.ok) throw new Error(body.error ?? "No se pudo establecer la sesión portable.");
+  return credentials.account;
 }

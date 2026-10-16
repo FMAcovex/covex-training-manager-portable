@@ -7,8 +7,30 @@ describe("configuración de runtime", () => {
     expect(readRuntimeConfiguration(env)).toMatchObject({
       production: false,
       authMode: "demo",
+      persistenceProvider: "demo",
       databaseConfigured: false,
       sharePoint: { enabled: false },
+    });
+    expect(shouldUsePersistentRepositories(env)).toBe(false);
+  });
+
+  it("permite producción portable sin PostgreSQL y prohíbe demo", () => {
+    const env = {
+      APP_ENV: "production",
+      AUTH_MODE: "portable-entra",
+      PERSISTENCE_PROVIDER: "portable-sharepoint",
+      PORTABLE_ENTRA_TENANT_ID: "11111111-1111-1111-1111-111111111111",
+      PORTABLE_ENTRA_CLIENT_ID: "22222222-2222-2222-2222-222222222222",
+      PORTABLE_ENTRA_REDIRECT_URI: "http://127.0.0.1:43110",
+      PORTABLE_SHAREPOINT_SITE_ID: "site",
+      PORTABLE_SHAREPOINT_DOCUMENT_DRIVE_ID: "drive",
+      PORTABLE_SHAREPOINT_LIST_PREFIX: "COVEX",
+    } as NodeJS.ProcessEnv;
+    expect(readRuntimeConfiguration(env)).toMatchObject({
+      production: true,
+      authMode: "portable-entra",
+      persistenceProvider: "portable-sharepoint",
+      databaseConfigured: false,
     });
     expect(shouldUsePersistentRepositories(env)).toBe(false);
   });

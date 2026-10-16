@@ -1,14 +1,18 @@
+import { readRuntimeConfiguration } from "@/config/runtime";
+import PortableLogin from "./portable-login";
+
 export default function AccessDeniedPage() {
+  const portable = readRuntimeConfiguration().authMode === "portable-entra";
   return (
     <main className="standalone-page">
       <section className="card">
         <h1>Acceso no disponible</h1>
-        <p>
+        {portable ? <PortableLogin /> : <><p>
           La identidad corporativa se ha reconocido, pero este usuario no tiene un perfil activo en COVEX Training Manager.
         </p>
         <p className="muted">
           Solicite al administrador de la aplicación que revise el usuario y el rol asignado.
-        </p>
+        </p></>}
       </section>
     </main>
   );

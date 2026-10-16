@@ -38,6 +38,17 @@ function graphUrl(pathOrUrl: string) {
   return url;
 }
 
+function uploadUrl(pathOrUrl: string) {
+  const url = new URL(pathOrUrl);
+  const host = url.hostname.toLocaleLowerCase();
+  const allowed = url.protocol === "https:"
+    && (host.endsWith(".up.1drv.com") || host.endsWith(".sharepoint.com"));
+  if (!allowed) {
+    throw new GraphRequestError("Microsoft Graph devolvió una URL de carga no permitida.", 502, "invalidUploadUrl");
+  }
+  return url;
+}
+
 function retryDelay(response: Response, attempt: number) {
   const millisecondsHeader = response.headers.get("x-ms-retry-after-ms");
   const milliseconds = millisecondsHeader === null ? Number.NaN : Number(millisecondsHeader);
@@ -115,5 +126,19 @@ export class GraphClient {
     }
     if (next) throw new GraphRequestError("La consulta superó el límite seguro de 100 páginas.", 502, "pageLimit");
     return values;
+  }
+
+  /** Upload-session URLs are pre-authenticated. Never attach the Graph bearer token. */
+  async requestUpload(pathOrUrl: string, init: RequestInit = {}) {
+    const url = uploadUrl(pathOrUrl);
+    for (let attempt = 0; ; attempt += 1) {
+      const response = await this.fetcher(url, init);
+      if (response.ok) return response;
+      if (RETRYABLE_STATUSES.has(response.status) && attempt < this.maxRetries) {
+        await this.sleep(retryDelay(response, attempt));
+        continue;
+      }
+      throw await graphError(response);
+    }
   }
 }

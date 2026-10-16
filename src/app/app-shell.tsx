@@ -5,6 +5,7 @@ import { canAccessAdministration, canReadDocumentControl } from "@/auth/current-
 import { getPageUser } from "@/auth/page-user";
 import { readRuntimeConfiguration } from "@/config/runtime";
 import { AppIcon, type IconName } from "@/app/components/icons";
+import PortableLogout from "@/app/components/portable-logout";
 
 type NavigationLink = {
   label: string;
@@ -92,6 +93,7 @@ export default async function AppShell({ active, children }: { active: string; c
             <div>
               <strong>{user.displayName}</strong>
               <span>{roleLabel[user.role]}</span>
+              {runtime.authMode === "portable-entra" && <PortableLogout />}
             </div>
           </div>
         </header>
