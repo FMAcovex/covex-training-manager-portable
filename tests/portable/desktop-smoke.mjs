@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, open, readFile, writeFile, rm } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -66,8 +66,11 @@ async function localRequest(url, method = "GET") {
 }
 try {
   assert(await portFree(), "Runner must begin with free fixed port");
-  execFileSync("icacls.exe", [directory, "/deny", `${user}:(OI)(CI)(W)`, "/T", "/C"], { stdio: "ignore" }); acl = true;
+  // Generic W also denies SYNCHRONIZE / READ_CONTROL on NTFS, unintentionally
+  // blocking reads and EXE launch. Deny only write/delete bits, retaining RX.
+  execFileSync("icacls.exe", [directory, "/deny", `${user}:(OI)(CI)(WD,AD,WEA,WA,DE,DC)`, "/T", "/C"], { stdio: "ignore" }); acl = true;
   await assert.rejects(writeFile(path.join(directory, "must-not-write.tmp"), "test"), (error) => ["EACCES", "EPERM"].includes(error.code), "Read-only install ACL must actually deny writing");
+  await (await open(executable, "r")).close();
   native = await electron.launch({ executablePath: executable, args: [], env, timeout: 60_000 });
   launcher = await native.firstWindow();
   await launcher.locator("#version").filter({ hasText: manifest.version }).waitFor();
