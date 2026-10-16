@@ -9,6 +9,9 @@ export function allowedRuntimeFile(file) {
   const name = path.basename(file);
   return !excluded.has(name) && name !== ".env" && !name.startsWith(".env.") && !/\.(pem|key|pfx|p12|dump|sql|tsbuildinfo)$/i.test(name);
 }
+export async function physicalRuntimeFile(file) {
+  return allowedRuntimeFile(file) && !(await lstat(file)).isSymbolicLink();
+}
 
 export async function inventory(directory, relative = "") {
   const result = [];
@@ -37,7 +40,7 @@ export async function materializeTracedPackages(sourceModules, destinationModule
     catch (error) { if (error.code !== "ENOENT") throw error; }
     if (versions.has(name) && versions.get(name) !== version) throw new Error(`Conflicting traced runtime versions for ${name}`);
     versions.set(name, version);
-    await cp(source, path.join(destinationModules, name), { recursive: true, dereference: true, filter: allowedRuntimeFile });
+    await cp(source, path.join(destinationModules, name), { recursive: true, filter: physicalRuntimeFile });
   }
   for (const item of stores) {
     const modules = path.join(store, item, "node_modules");
@@ -60,7 +63,9 @@ export async function stageApp() {
   await mkdir(runtime, { recursive: true });
   for (const file of ["main.cjs", "desktop-main.cjs", "settings.cjs", "server-process.cjs", "server-entry.cjs", "preload.cjs", "launcher.html", "launcher.css", "launcher.js"]) await cp(path.join(root, "portable/electron", file), path.join(staging, file));
   await cp(path.join(root, "public/brand/covex-logo.jpg"), path.join(staging, "covex-logo.jpg"));
-  await cp(path.join(root, ".next/standalone"), runtime, { recursive: true, dereference: true, filter: allowedRuntimeFile });
+  // Next can emit unusable Windows junctions at the top level. Do not stat/follow
+  // them: package the real traced files below .pnpm, then materialize above.
+  await cp(path.join(root, ".next/standalone"), runtime, { recursive: true, filter: physicalRuntimeFile });
   await materializeTracedPackages(path.join(root, ".next/standalone/node_modules"), path.join(runtime, "node_modules"));
   await mkdir(path.join(runtime, ".next"), { recursive: true });
   await cp(path.join(root, ".next/static"), path.join(runtime, ".next/static"), { recursive: true, dereference: true, filter: allowedRuntimeFile });

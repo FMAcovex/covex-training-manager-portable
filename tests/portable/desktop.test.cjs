@@ -75,10 +75,13 @@ test("embedded child starts, proves ownership and releases its port on repeated 
 });
 
 test("traced pnpm dependencies are materialized without symlinks; conflicting versions fail", async () => {
-  const { materializeTracedPackages, inventory, allowedRuntimeFile } = await import("../../scripts/portable/stage-app.mjs");
+  const { materializeTracedPackages, inventory, allowedRuntimeFile, physicalRuntimeFile } = await import("../../scripts/portable/stage-app.mjs");
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "covex-packaging-"));
   const modules = path.join(directory, "source"); const destination = path.join(directory, "runtime");
   try {
+    const brokenLink = path.join(directory, "broken-next-junction");
+    await fs.symlink(path.join(directory, "nonexistent-package"), brokenLink, process.platform === "win32" ? "junction" : "dir");
+    assert.equal(await physicalRuntimeFile(brokenLink), false, "Never stat or follow Next's broken runtime links");
     for (const [store, name] of [["next@1", "next"], ["styled-jsx@1", "styled-jsx"], ["env@1", "@next/env"]]) {
       const pkg = path.join(modules, ".pnpm", store, "node_modules", name);
       await fs.mkdir(pkg, { recursive: true });
