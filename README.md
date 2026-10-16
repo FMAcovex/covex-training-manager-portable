@@ -41,6 +41,17 @@ La receta de implantación para IT está en docs/IT_DEPLOYMENT.md.
 
 Ejecutar pnpm quality para generación Prisma, lint, tests, build y validación reproducible de anexos.
 
+## H10A · prototipo portable Windows + SharePoint
+
+H10A añade una prueba vertical independiente en `/portable-poc`: conserva la interfaz Next.js, se empaqueta con Electron para Windows y usa autenticación delegada de Microsoft Entra (MSAL, Authorization Code + PKCE) para acceder a una lista y una biblioteca de SharePoint mediante Microsoft Graph. No sustituye todavía PostgreSQL ni activa el conjunto completo de módulos.
+
+1. Copiar `.env.example` a `.env.local` y completar únicamente los identificadores públicos indicados en [`docs/H10A_IT_REQUIREMENTS.md`](docs/H10A_IT_REQUIREMENTS.md).
+2. Ejecutar `pnpm portable:dev` para la aplicación de escritorio local.
+3. Ejecutar `pnpm portable:verify` para las pruebas simuladas de Graph/SharePoint.
+4. Ejecutar `pnpm portable:package:win` para generar el paquete x64 en `dist-portable/`.
+
+El análisis de los 22 modelos y la frontera de la prueba están en [`docs/H10A_PORTABLE_AUDIT.md`](docs/H10A_PORTABLE_AUDIT.md). Los resultados y limitaciones se registran en [`docs/H10A_RESULT.md`](docs/H10A_RESULT.md).
+
 ## Entrega a IT
 
 - `docs/DEMO_FOR_IT.md`: guion para presentar la aplicación.
