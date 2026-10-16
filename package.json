@@ -1,0 +1,45 @@
+{
+  "name": "covex-training-manager",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "quality": "pnpm db:generate && pnpm lint && pnpm test && pnpm build && pnpm annexes:validate",
+    "annex-iii:validate": "node --import tsx scripts/generate-annex-iii-samples.ts",
+    "annex-iv:validate": "node --import tsx scripts/generate-annex-iv-samples.ts",
+    "annex-v:validate": "node --import tsx scripts/generate-annex-v-samples.ts",
+    "annexes:validate": "pnpm annex-iii:validate && pnpm annex-iv:validate && pnpm annex-v:validate",
+    "db:generate": "prisma generate",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
+    "deployment:verify": "node --test tests/deployment/preflight.test.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.2",
+    "jose": "6.2.12",
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "read-excel-file": "9.3.10",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prisma": "^6.16.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

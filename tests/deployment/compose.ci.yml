@@ -1,0 +1,7 @@
+services:
+  oauth2-proxy:
+    image: node:22-bookworm-slim
+    entrypoint: [node]
+    command: [/ci/auth-stub.mjs]
+    volumes:
+      - ./tests/deployment/auth-stub.mjs:/ci/auth-stub.mjs:ro

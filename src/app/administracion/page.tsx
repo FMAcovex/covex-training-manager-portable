@@ -1,0 +1,8 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import AppShell from "@/app/app-shell";
+import { canAccessAdministration } from "@/auth/current-user";
+import { getPageUser } from "@/auth/page-user";
+import AdminNav from "./admin-nav";
+export const dynamic = "force-dynamic";
+export default async function AdministrationPage() { if (!canAccessAdministration(await getPageUser())) redirect("/"); return <AppShell active="Administración"><h1>Administración</h1><p className="muted">Configuración interna y trazabilidad. Acceso exclusivo para administradores.</p><AdminNav /><div className="admin-grid"><Link className="card" href="/administracion/usuarios"><h2>Usuarios</h2><p>Perfiles, roles y estado.</p></Link><Link className="card" href="/administracion/catalogos"><h2>Catálogos</h2><p>Valores activos e históricos.</p></Link><Link className="card" href="/administracion/plantillas"><h2>Plantillas</h2><p>Registro de versiones y vigencia.</p></Link><Link className="card" href="/administracion/importar-formaciones"><h2>Importar formaciones</h2><p>Previsualización y migración controlada de la plantilla 2026.</p></Link><Link className="card" href="/administracion/revision-datos"><h2>Revisión de datos</h2><p>Integridad, pendientes y referencias históricas de las formaciones.</p></Link><Link className="card" href="/administracion/auditoria"><h2>Auditoría</h2><p>Consulta de cambios relevantes.</p></Link></div></AppShell>; }

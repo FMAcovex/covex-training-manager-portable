@@ -1,0 +1,15 @@
+node_modules/
+.pnpm-store/
+.next/
+.env
+.env.*
+!.env.example
+coverage/
+*.tsbuildinfo
+tmp/
+.data/
+
+# Implantación: secretos, certificados, dumps y evidencia local
+/deploy/.env.production
+/tls/
+/backups/

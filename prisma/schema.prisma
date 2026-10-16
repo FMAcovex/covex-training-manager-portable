@@ -1,0 +1,394 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PersonType {
+  INTERNAL
+  EXTERNAL
+}
+
+enum UserRole {
+  USER
+  RESPONSIBLE
+  ADMIN
+}
+
+enum PlanningType {
+  PLANNED
+  UNPLANNED
+}
+
+enum TrainingOriginType {
+  INTERNAL
+  EXTERNAL
+}
+
+enum SessionExecutionStatus {
+  PENDING
+  EXECUTED
+  NOT_EXECUTED
+}
+
+enum AttendanceStatus {
+  EXPECTED
+  ATTENDED
+  NOT_ATTENDED
+}
+
+enum AttendanceResult {
+  PENDING
+  PASS
+  FAIL
+  NOT_APPLICABLE
+}
+
+enum AnnexType {
+  ANNEX_III
+  ANNEX_IV
+  ANNEX_V
+}
+
+enum DocumentControlAttachmentCategory {
+  SIGNED_ANNEX_III
+  TRAINING_MATERIAL
+  EVALUATION_EVIDENCE
+}
+
+model Person {
+  id                  String                   @id @default(uuid())
+  employeeCode        String?                  @unique
+  fullName            String
+  personType          PersonType
+  company             String?
+  departmentId        String?
+  department          Department?              @relation(fields: [departmentId], references: [id])
+  jobTitle            String
+  active              Boolean                  @default(true)
+  notes               String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  plannedTrainerLinks TrainingPlannedTrainer[]
+  sessionTrainerLinks TrainingSessionTrainer[]
+  attendances         Attendance[]
+  generatedDocuments  GeneratedDocument[]
+  trainerQualifications TrainerQualification[]
+  trainerDocuments      TrainerDocument[]
+}
+
+model Department {
+  id                  String                     @id @default(uuid())
+  code                String                     @unique
+  name                String
+  active              Boolean                    @default(true)
+  people              Person[]
+  targetTrainingLinks TrainingTargetDepartment[]
+}
+
+model UserProfile {
+  id                      String              @id @default(uuid())
+  entraObjectId           String              @unique
+  email                   String              @unique
+  displayName             String
+  role                    UserRole            @default(USER)
+  active                  Boolean             @default(true)
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  generatedDocuments      GeneratedDocument[]
+  updatedDocumentControls DocumentControl[]
+  auditEvents             AuditEvent[]
+  trainingImportRuns      TrainingImportRun[]
+  closedTrainings          Training[]           @relation("TrainingClosedBy")
+}
+
+model TrainingType {
+  id        String     @id @default(uuid())
+  code      String     @unique
+  name      String
+  active    Boolean    @default(true)
+  trainings Training[]
+}
+
+model Modality {
+  id        String     @id @default(uuid())
+  code      String     @unique
+  name      String
+  active    Boolean    @default(true)
+  trainings Training[]
+}
+
+model EvaluationMethod {
+  id        String     @id @default(uuid())
+  code      String     @unique
+  name      String
+  active    Boolean    @default(true)
+  trainings Training[]
+}
+
+model Training {
+  id                          String                     @id @default(uuid())
+  code                        String                     @unique
+  year                        Int
+  name                        String
+  planningType                PlanningType
+  trainingTypeId              String?
+  trainingType                TrainingType?              @relation(fields: [trainingTypeId], references: [id])
+  reason                      String?
+  isGmp                       Boolean                    @default(false)
+  originType                  TrainingOriginType
+  modalityId                  String?
+  modality                    Modality?                  @relation(fields: [modalityId], references: [id])
+  plannedDurationMinutes      Int?
+  materialReference           String?
+  content                     String?
+  targetGroup                 String?
+  plannedExternalTrainerNames String[]                   @default([])
+  evaluationMethodId          String?
+  evaluationMethod            EvaluationMethod?          @relation(fields: [evaluationMethodId], references: [id])
+  aptitudeCriterion           String?
+  frequencyMonths             Int?
+  notes                       String?
+  createdByUserId             String
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
+  plannedTrainerLinks         TrainingPlannedTrainer[]
+  targetDepartmentLinks       TrainingTargetDepartment[]
+  sessions                    TrainingSession[]
+  closedAt                    DateTime?
+  closedByUserId              String?
+  closedByUser                UserProfile?                @relation("TrainingClosedBy", fields: [closedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([year])
+  @@index([name])
+  @@index([planningType])
+  @@index([trainingTypeId])
+  @@index([originType])
+  @@index([closedByUserId])
+}
+
+model TrainingPlannedTrainer {
+  trainingId String
+  personId   String
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@id([trainingId, personId])
+  @@index([personId])
+}
+
+model TrainingTargetDepartment {
+  trainingId   String
+  departmentId String
+  training     Training   @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  @@id([trainingId, departmentId])
+  @@index([departmentId])
+}
+
+model TrainingCodeSequence {
+  year      Int      @id
+  lastValue Int
+  updatedAt DateTime @updatedAt
+}
+
+model TrainingSession {
+  id                   String                   @id @default(uuid())
+  trainingId           String
+  training             Training                 @relation(fields: [trainingId], references: [id])
+  code                 String                   @unique
+  plannedDate          DateTime                 @db.Date
+  executionDate        DateTime?                @db.Date
+  externalTrainerNames String[]                 @default([])
+  blankAttendanceRows  Int                      @default(0)
+  durationMinutes      Int
+  executionStatus      SessionExecutionStatus   @default(PENDING)
+  nonExecutionReason   String?
+  notes                String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  executedAt           DateTime?
+  executedByUserId     String?
+  trainerLinks         TrainingSessionTrainer[]
+  attendances          Attendance[]
+  generatedDocuments   GeneratedDocument[]
+  documentControl      DocumentControl?
+
+  @@index([trainingId])
+  @@index([executionStatus])
+  @@index([plannedDate])
+}
+
+model TrainingSessionTrainer {
+  sessionId String
+  personId  String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  person    Person          @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@id([sessionId, personId])
+  @@index([personId])
+}
+
+model DocumentControl {
+  id                         String                      @id @default(uuid())
+  sessionId                  String                      @unique
+  session                    TrainingSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  signedAnnexIII             Boolean                     @default(false)
+  trainingMaterialArchived   Boolean                     @default(false)
+  evaluationEvidenceArchived Boolean                     @default(false)
+  dossierPrinted             Boolean                     @default(false)
+  signedAnnexIIIReason       String?
+  trainingMaterialReason     String?
+  evaluationEvidenceReason   String?
+  updatedByUserId            String
+  updatedByUser              UserProfile                 @relation(fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  updatedAt                  DateTime                    @updatedAt
+  attachments                DocumentControlAttachment[]
+
+  @@index([updatedByUserId])
+}
+
+model DocumentControlAttachment {
+  id                String                            @id @default(uuid())
+  documentControlId String
+  documentControl   DocumentControl                   @relation(fields: [documentControlId], references: [id], onDelete: Cascade)
+  category          DocumentControlAttachmentCategory
+  fileName          String
+  mimeType          String
+  sizeBytes         Int
+  content           Bytes
+  uploadedByUserId  String
+  createdAt         DateTime                          @default(now())
+
+  @@index([documentControlId, category, createdAt])
+}
+
+model Attendance {
+  id               String           @id @default(uuid())
+  sessionId        String
+  session          TrainingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  personId         String
+  person           Person           @relation(fields: [personId], references: [id])
+  attendanceStatus AttendanceStatus @default(EXPECTED)
+  result           AttendanceResult @default(PENDING)
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([sessionId, personId])
+  @@index([personId])
+}
+
+model SessionCodeSequence {
+  trainingId String   @id
+  lastValue  Int
+  updatedAt  DateTime @updatedAt
+}
+
+model TemplateVersion {
+  id                 String              @id @default(uuid())
+  annexType          AnnexType
+  procedureCode      String
+  templateVersion    String
+  storageProvider    String
+  storageReference   String
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  active             Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  generatedDocuments GeneratedDocument[]
+
+  @@unique([annexType, procedureCode, templateVersion])
+  @@index([annexType, active, effectiveFrom, effectiveTo])
+}
+
+model GeneratedDocument {
+  id                String           @id @default(uuid())
+  annexType         AnnexType
+  templateVersionId String
+  templateVersion   TemplateVersion  @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  sessionId         String?
+  session           TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  personId          String?
+  person            Person?          @relation(fields: [personId], references: [id], onDelete: Restrict)
+  year              Int?
+  generatedByUserId String
+  generatedByUser   UserProfile      @relation(fields: [generatedByUserId], references: [id], onDelete: Restrict)
+  generatedAt       DateTime         @default(now())
+
+  @@index([sessionId, generatedAt])
+  @@index([personId, year, generatedAt])
+  @@index([year, generatedAt])
+  @@index([templateVersionId])
+  @@index([generatedByUserId])
+}
+
+model AuditEvent {
+  id          String      @id @default(uuid())
+  actorUserId String
+  actorUser   UserProfile @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  timestamp   DateTime    @default(now())
+  entityType  String
+  entityId    String
+  action      String
+  beforeJson  Json?
+  afterJson   Json?
+  contextJson Json?
+
+  @@index([timestamp])
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([action])
+}
+
+model TrainingImportRun {
+  id                String      @id @default(uuid())
+  sourceFingerprint String      @unique
+  year              Int
+  actorUserId       String
+  actorUser         UserProfile @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  summaryJson       Json
+  createdAt         DateTime    @default(now())
+
+  @@index([year, createdAt])
+  @@index([actorUserId])
+}
+
+
+model TrainerQualification {
+  id                 String    @id @default(uuid())
+  personId           String
+  person             Person    @relation(fields: [personId], references: [id], onDelete: Restrict)
+  authorizedSubject           String
+  authorizedSubjectNormalized String
+  evidence                     String
+  qualifiedFrom      DateTime  @db.Date
+  qualifiedTo        DateTime? @db.Date
+  annulledAt         DateTime?
+  annulledByUserId   String?
+  annulmentReason    String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([personId, authorizedSubjectNormalized, qualifiedFrom])
+  @@index([personId, qualifiedTo])
+  @@index([annulledAt])
+}
+
+model TrainerDocument {
+  id               String   @id @default(uuid())
+  personId         String
+  person           Person   @relation(fields: [personId], references: [id], onDelete: Restrict)
+  fileName         String
+  mimeType         String
+  sizeBytes        Int
+  content          Bytes
+  uploadedByUserId String
+  createdAt        DateTime @default(now())
+
+  @@index([personId, createdAt])
+}

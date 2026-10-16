@@ -1,0 +1,14 @@
+.git
+.github
+.next
+node_modules
+.data
+tmp
+.env
+.env.*
+!.env.example
+*.log
+coverage
+tls
+backups
+deploy/.env.production

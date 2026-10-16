@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Quality
+        run: pnpm quality && pnpm deployment:verify
+
+
+  database-migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: covex_training_ci
+          POSTGRES_USER: covex
+          POSTGRES_PASSWORD: covex_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U covex -d covex_training_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://covex:covex_ci@localhost:5432/covex_training_ci?schema=public
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Apply migrations to empty PostgreSQL
+        run: pnpm db:deploy
+
+      - name: Seed PostgreSQL
+        run: pnpm db:seed
+
+      - name: Verify migration status
+        run: pnpm exec prisma migrate status
+
+
+  docker-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build portable Docker image
+        run: docker build -t covex-training-manager:ci .
+
+      - name: Prepare isolated deployment configuration
+        run: |
+          node tests/deployment/prepare.mjs
+          openssl req -x509 -nodes -newkey rsa:2048 -days 1 -keyout tls/privkey.pem -out tls/fullchain.pem -subj /CN=localhost
+
+      - name: Production deployment smoke (without corporate credentials)
+        run: bash tests/deployment/smoke.sh
+
+      - name: Deployment diagnostics on failure (CI data only)
+        if: failure()
+        run: docker compose --env-file deploy/.env.production -f docker-compose.production.yml -f tests/deployment/compose.ci.yml logs --tail 100 app gateway oauth2-proxy
+
+      - name: Clean isolated deployment
+        if: always()
+        run: docker compose --env-file deploy/.env.production -f docker-compose.production.yml -f tests/deployment/compose.ci.yml down -v

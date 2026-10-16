@@ -1,0 +1,54 @@
+# Do not log query strings: OIDC callbacks contain authorization codes.
+log_format covex '$remote_addr $request_method $uri $status';
+server {
+  listen 443 ssl;
+  server_name ${PUBLIC_HOST};
+  ssl_certificate /etc/nginx/tls/fullchain.pem;
+  ssl_certificate_key /etc/nginx/tls/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  access_log /var/log/nginx/access.log covex;
+  client_max_body_size 25m;
+  add_header Strict-Transport-Security "max-age=31536000" always;
+
+  location = /oauth2/auth {
+    internal;
+    proxy_pass http://oauth2-proxy:4180;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Uri $request_uri;
+    proxy_set_header Authorization "";
+  }
+  location /oauth2/ {
+    proxy_pass http://oauth2-proxy:4180;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Auth-Request-Redirect $request_uri;
+    proxy_set_header Authorization "";
+  }
+  location @signin { return 302 /oauth2/start?rd=$request_uri; }
+  location /api/ {
+    auth_request /oauth2/auth;
+    auth_request_set $verified_token $upstream_http_authorization;
+    auth_request_set $auth_cookie $upstream_http_set_cookie;
+    add_header Set-Cookie $auth_cookie always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    include /etc/nginx/backend.conf;
+    proxy_set_header X-Covex-Proxy-Secret "${AUTH_PROXY_SECRET}";
+  }
+  location / {
+    auth_request /oauth2/auth;
+    error_page 401 = @signin;
+    auth_request_set $verified_token $upstream_http_authorization;
+    auth_request_set $auth_cookie $upstream_http_set_cookie;
+    add_header Set-Cookie $auth_cookie always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    include /etc/nginx/backend.conf;
+    proxy_set_header X-Covex-Proxy-Secret "${AUTH_PROXY_SECRET}";
+  }
+}

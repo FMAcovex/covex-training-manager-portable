@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+    environment:
+      APP_ENV: development
+      AUTH_MODE: demo
+      SHAREPOINT_ENABLED: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - training-demo-data:/app/.data
+    restart: unless-stopped
+
+volumes:
+  training-demo-data:

@@ -1,0 +1,113 @@
+name: covex-training-production
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+x-app: &app
+  image: ${APP_IMAGE:?APP_IMAGE obligatorio}
+  build: .
+  environment:
+    APP_ENV: production
+    AUTH_MODE: entra-proxy
+    SHAREPOINT_ENABLED: "false"
+    DATABASE_URL: postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}?schema=public
+    ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:?}
+    ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:?}
+    AUTH_PROXY_SECRET: ${AUTH_PROXY_SECRET:?}
+  networks: [data, application]
+  logging: *logging
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?}
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [data]
+    logging: *logging
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  migrate:
+    <<: *app
+    profiles: [operations]
+    command: [pnpm, db:deploy]
+    depends_on:
+      postgres: {condition: service_healthy}
+  app:
+    <<: *app
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+  redis:
+    image: redis:7-bookworm
+    restart: unless-stopped
+    command: [redis-server, --save, "", --appendonly, "no"]
+    networks: [identity]
+    logging: *logging
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+    restart: unless-stopped
+    environment:
+      OAUTH2_PROXY_PROVIDER: entra-id
+      OAUTH2_PROXY_OIDC_ISSUER_URL: https://login.microsoftonline.com/${ENTRA_TENANT_ID:?}/v2.0
+      OAUTH2_PROXY_CLIENT_ID: ${ENTRA_CLIENT_ID:?}
+      OAUTH2_PROXY_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:?}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?}
+      OAUTH2_PROXY_REDIRECT_URL: ${APP_PUBLIC_URL:?}/oauth2/callback
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_SCOPE: openid profile email
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_HTTPONLY: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_EXPIRE: 4h
+      OAUTH2_PROXY_COOKIE_REFRESH: 1h
+      OAUTH2_PROXY_SESSION_STORE_TYPE: redis
+      OAUTH2_PROXY_REDIS_CONNECTION_URL: redis://redis:6379/0
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_NONCE: "false"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_REQUEST_LOGGING: "false"
+      OAUTH2_PROXY_AUTH_LOGGING: "false"
+    depends_on: [redis]
+    networks: [identity, outbound]
+    logging: *logging
+  gateway:
+    image: nginx:1.28-bookworm
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?}
+      AUTH_PROXY_SECRET: ${AUTH_PROXY_SECRET:?}
+      NGINX_ENVSUBST_FILTER: ^(PUBLIC_HOST|AUTH_PROXY_SECRET)$$
+    ports: ['${BIND_ADDRESS:-127.0.0.1}:${HTTPS_PORT:-443}:443']
+    volumes:
+      - ./deploy/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./deploy/nginx/backend.conf:/etc/nginx/backend.conf:ro
+      - ${TLS_DIRECTORY:-./tls}:/etc/nginx/tls:ro
+    depends_on:
+      app: {condition: service_healthy}
+      oauth2-proxy: {condition: service_started}
+    healthcheck:
+      test: [CMD-SHELL, 'nginx -t >/dev/null 2>&1 && kill -0 "$$(cat /var/run/nginx.pid)"']
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    networks: [application, identity]
+    logging: *logging
+volumes:
+  postgres_data:
+networks:
+  data: {internal: true}
+  identity: {internal: true}
+  application:
+  outbound:
