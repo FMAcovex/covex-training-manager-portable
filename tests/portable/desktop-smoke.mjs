@@ -178,6 +178,7 @@ try {
   record("whole-application-exit-no-orphan-service");
   await writeFile(path.join(output, "result.json"), JSON.stringify({ result: "passed", platform: process.platform, os: os.release(), architecture: process.arch, version: manifest.version, sourceCommit: manifest.sourceCommit, archiveName: manifest.archiveName, sha256, execution: "extracted packaged Windows EXE with embedded Node/Next", passed, realCorporateValidation: false, gmp: "NO-GO", pending: ["physical Windows 10/11", "standard-user corporate desktop", "corporate AV / SmartScreen / signature", "real Entra / SharePoint / permissions / audit / recovery"] }, null, 2));
 } catch (error) {
+  console.error(`Native smoke failed after: ${passed.join(", ") || "EXE launch"}`);
   if (launcher && !launcher.isClosed()) await launcher.screenshot({ path: path.join(output, "failure-launcher.png"), fullPage: true }).catch(() => {});
   await writeFile(path.join(output, "failure.json"), JSON.stringify({ passed, error: error instanceof Error ? error.message : "Native smoke failure", realCorporateValidation: false }, null, 2));
   throw error;

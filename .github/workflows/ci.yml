@@ -179,6 +179,8 @@ jobs:
           }
 
       - name: Run extracted Windows EXE (native UI, lifecycle, isolation and package hash)
+        env:
+          DEBUG: pw:browser
         run: |
           pnpm portable:desktop:smoke 2>&1 | Tee-Object -Variable smokeOutput
           if ($LASTEXITCODE -ne 0) {

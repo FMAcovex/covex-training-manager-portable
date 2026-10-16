@@ -7,7 +7,12 @@ const { ORIGIN, REDIRECT_URI, DesktopError, loadSettings, saveSettings, validate
 const { EmbeddedServer } = require("./server-process.cjs");
 
 app.setName("COVEX Training Manager Portable");
-app.setPath("userData", path.join(app.getPath("appData"), "COVEX Training Manager Portable"));
+let profileFailure = false;
+try {
+  const userData = path.join(app.getPath("appData"), "COVEX Training Manager Portable");
+  require("node:fs").mkdirSync(userData, { recursive: true });
+  app.setPath("userData", userData);
+} catch { profileFailure = true; }
 const launcherURL = pathToFileURL(path.join(__dirname, "launcher.html")).href;
 let launcher, application, appSession, closing = false, busy = false, configuration = null;
 let status = { phase: "ready", message: "Selecciona demostración o configura el piloto Microsoft 365.", code: null, mode: null };
@@ -136,7 +141,10 @@ async function main() {
   await launcher.loadURL(launcherURL); launcher.show();
 }
 
-if (!app.requestSingleInstanceLock()) app.quit();
+if (profileFailure) void app.whenReady().then(() => {
+  dialog.showErrorBox("COVEX — perfil no disponible", "No se puede preparar el perfil de usuario. Solicita a IT revisar sus permisos y antivirus. No se escribirán datos en la carpeta del programa."); app.exit(1);
+});
+else if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on("second-instance", () => { const window = application || launcher; if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } });
   app.on("before-quit", (event) => {
