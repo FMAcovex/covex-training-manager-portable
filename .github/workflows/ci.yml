@@ -47,6 +47,17 @@ jobs:
       - name: Portable UI smoke with signed synthetic identity and simulated Graph
         run: pnpm portable:smoke
 
+      - name: Interactive demo UI, PDF download and process restart (synthetic only)
+        run: pnpm portable:demo:smoke
+
+      - name: Upload interactive demo evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h10d-interactive-demo-synthetic
+          path: tmp/demo-smoke/**
+          if-no-files-found: ignore
+
       - name: Upload synthetic portable smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -199,7 +210,7 @@ jobs:
       - name: Upload Windows release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: covex-training-manager-portable-windows-h10c
+          name: covex-training-manager-portable-windows-h10d
           path: |
             dist-portable/*.zip
             dist-portable/*.sha256
@@ -210,7 +221,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: h10c-windows-acceptance-synthetic
+          name: h10d-windows-acceptance-synthetic
           path: |
             tmp/desktop-smoke/**
             tmp/portable-smoke/**

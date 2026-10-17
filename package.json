@@ -1,6 +1,6 @@
 {
   "name": "covex-training-manager",
-  "version": "0.3.0-rc.1",
+  "version": "0.4.0-rc.1",
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "scripts": {
@@ -23,6 +23,7 @@
     "portable:dev": "node scripts/portable/run-electron-dev.mjs",
     "portable:verify": "vitest run src/portable",
     "portable:smoke": "node tests/portable/smoke.mjs",
+    "portable:demo:smoke": "node tests/portable/demo-smoke.mjs",
     "portable:desktop:verify": "node --test tests/portable/desktop.test.cjs",
     "portable:desktop:smoke": "node tests/portable/desktop-smoke.mjs",
     "portable:standalone:smoke": "node tests/portable/standalone-smoke.mjs",

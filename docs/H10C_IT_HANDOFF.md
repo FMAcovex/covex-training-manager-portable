@@ -1,5 +1,7 @@
 # H10C — entrega a IT
 
+Actualización H10D: el piloto corporativo descrito aquí no cambia. La nueva candidata `0.4.0-rc.1` amplía solo la demo en RAM; distribución y prueba personal actuales en [Guía Windows](GUIA_INICIO_WINDOWS.md) y alcance en [H10D](H10D_RESULT.md). Los nombres/versiones H10C de este documento son históricos.
+
 ## Alcance e inventario
 
 Candidata `0.3.0-rc.1`, Windows x64, basada en H10B `6fa4aee00356453fb3e0b0435a48e9bbaa4e3b25`. Mantiene Next.js, los 22 modelos/adaptadores, reglas, módulos, anexos e importaciones. H9A conserva PostgreSQL y Docker como alternativa independiente.

@@ -2,21 +2,23 @@
 
 Aplicación web interna para gestionar formaciones, sesiones, asistentes, documentación, planes anuales e historiales individuales.
 
-## H10C · candidata portable Windows (NO-GO corporativo / GMP)
+## H10D · demo interactiva Windows (NO-GO corporativo / GMP)
 
-La entrega `0.3.0-rc.1` incluye un ZIP Windows x64 con EXE y runtime embebido.
+La entrega `0.4.0-rc.1` incluye un ZIP Windows x64 con EXE y runtime embebido.
 Extraer **todo** el ZIP y abrir `COVEX Training Manager Portable.exe` con doble clic;
 el usuario no instala Node.js, PostgreSQL ni Docker. No es un EXE autónomo separado de sus carpetas.
 
 - Inicio y prueba sin IT: [Guía Windows](docs/GUIA_INICIO_WINDOWS.md).
 - Configuración visual Microsoft 365, seguridad y piloto: [Entrega IT](docs/H10C_IT_HANDOFF.md).
-- Evidencias automatizadas y pruebas reales pendientes: [Matriz H10C](docs/H10C_ACCEPTANCE_MATRIX.md).
-- Descarga: artefacto `covex-training-manager-portable-windows-h10c` de la CI de la PR H10C;
+- Alcance, pruebas y límites de la demo: [Resultado H10D](docs/H10D_RESULT.md).
+- Evidencias de distribución y pruebas corporativas pendientes: [Matriz H10C](docs/H10C_ACCEPTANCE_MATRIX.md).
+- Descarga: artefacto `covex-training-manager-portable-windows-h10d` de la CI de la PR H10D;
   contiene ZIP versionado, SHA-256 y manifiesto del commit. No es una publicación productiva.
 
-La demostración de escritorio es **solo lectura**, usa exclusivamente datos sintéticos y no
-lee/escribe `.data`, importa archivos, sube adjuntos ni conecta a Microsoft 365. Permite navegar
-por los módulos y obtener Anexos III/IV/V ficticios. La demo de desarrollo descrita debajo es distinta.
+La demostración de escritorio permite **crear/editar formaciones, sesiones y asistentes/resultados en RAM**,
+finalizar/reabrir sesiones y descargar su Anexo III. Los cambios desaparecen al cerrar y reabrir.
+Usa exclusivamente datos ficticios; no lee/escribe `.data`, importa archivos, sube adjuntos ni conecta
+a Microsoft 365. Conserva la navegación y Anexos IV/V. La demo de desarrollo descrita debajo es distinta.
 El piloto conserva los 22 modelos y todas las funciones H10B, con Entra obligatorio y sin fallback demo.
 Los bloqueos de permisos, auditoría, reconciliación y recuperación de H10B siguen vigentes:
 **NO-GO para datos corporativos y GMP hasta aceptación real de IT y Calidad**.

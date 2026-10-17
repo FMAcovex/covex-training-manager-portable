@@ -2,7 +2,20 @@ type DesktopRequest = { path: string; method: string; host: string | null; origi
 type Rejection = { status: number; error: string };
 const ORIGIN = "http://127.0.0.1:43110";
 const unsafe = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const demoDocument = /^\/api\/(sessions\/[^/]+\/annex-iii|annual-plan\/\d{4}\/annex-iv|people\/[^/]+\/annex-v)$/;
+// Exact method + path allowlist. Never authorize a whole resource prefix: its
+// descendants include attachments, document controls and privileged operations.
+const id = "[A-Za-z0-9_-]+";
+const demoWrites: Record<string, RegExp[]> = {
+  POST: [
+    /^\/api\/people$/,
+    /^\/api\/trainings$/,
+    new RegExp(`^/api/trainings/${id}/sessions$`),
+    new RegExp(`^/api/sessions/${id}/(finalize|reopen|annex-iii)$`),
+    /^\/api\/annual-plan\/\d{4}\/annex-iv$/,
+    new RegExp(`^/api/people/${id}/annex-v$`),
+  ],
+  PATCH: [new RegExp(`^/api/trainings/${id}$`), new RegExp(`^/api/sessions/${id}$`)],
+};
 
 export function desktopRequestRejection(request: DesktopRequest, env: Record<string, string | undefined>): Rejection | undefined {
   const mode = env.PORTABLE_DESKTOP_MODE;
@@ -15,7 +28,7 @@ export function desktopRequestRejection(request: DesktopRequest, env: Record<str
   if (mode === "demo") {
     if (env.APP_ENV !== "development" || env.AUTH_MODE !== "demo" || env.PERSISTENCE_PROVIDER !== "demo" || env.DATABASE_URL) return { status: 503, error: "La demostración no puede utilizar una configuración corporativa." };
     if (request.path.startsWith("/api/portable/")) return { status: 403, error: "DEMO — DATOS FICTICIOS: Microsoft 365 y sincronización no están disponibles." };
-    if (unsafe.has(request.method) && !(request.method === "POST" && demoDocument.test(request.path))) return { status: 403, error: "DEMO — DATOS FICTICIOS: solo lectura. No se guardan formularios, importaciones ni adjuntos; no introduzcas datos reales." };
+    if (!["GET", "HEAD"].includes(request.method) && !demoWrites[request.method]?.some((pattern) => pattern.test(request.path))) return { status: 403, error: "DEMO — DATOS FICTICIOS: operación no autorizada. Solo formaciones, sesiones, asistentes y anexos sintéticos; sin importaciones ni adjuntos. No introduzcas datos reales." };
   } else if (env.APP_ENV !== "production" || env.AUTH_MODE !== "portable-entra" || env.PERSISTENCE_PROVIDER !== "portable-sharepoint") return { status: 503, error: "El piloto corporativo no puede utilizar autenticación o persistencia demo." };
   return undefined;
 }
