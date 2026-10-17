@@ -1,11 +1,11 @@
 # COVEX Training Manager Portable — inicio en Windows
 
-Versión candidata H10C `0.3.0-rc.1`, Windows x64. **NO-GO para datos corporativos y uso GMP. Utilizar únicamente datos ficticios.**
+Versión candidata H10D `0.4.0-rc.1`, Windows x64. **NO-GO para datos corporativos y uso GMP. Utilizar únicamente datos ficticios.**
 
 ## Descargar y abrir
 
-1. En la PR H10C, abre la ejecución de CI y descarga el artefacto `covex-training-manager-portable-windows-h10c`.
-2. Extrae el artefacto descargado. Dentro están `COVEX-Training-Manager-Portable-0.3.0-rc.1-windows-x64.zip`, su archivo `.sha256` y el manifiesto de compilación.
+1. En la PR H10D, abre la ejecución de CI y descarga el artefacto `covex-training-manager-portable-windows-h10d` (requiere iniciar sesión en GitHub).
+2. Extrae el artefacto descargado. Dentro están `COVEX-Training-Manager-Portable-0.4.0-rc.1-windows-x64.zip`, su archivo `.sha256` y el manifiesto de compilación.
 3. Extrae también ese ZIP de distribución en una carpeta propia. No ejecutes el programa dentro de la vista del ZIP.
 4. Abre la carpeta `COVEX Training Manager Portable-win32-x64` y haz doble clic en `COVEX Training Manager Portable.exe`.
 5. Conserva juntas todas las carpetas y archivos. **No es un EXE único:** incluye Electron/Node embebido, Next.js y recursos. No necesitas instalar Node.js, pnpm, PostgreSQL ni Docker, ni usar una consola para configurar la aplicación.
@@ -16,9 +16,22 @@ Windows 11 x64 es el objetivo recomendado. La aceptación en Windows 10/11 físi
 
 Pulsa **Abrir demostración**. Verás la interfaz corporativa existente, datos ficticios, formaciones, sesiones, asistentes, personal, formadores, catálogos, planes, controles documentales, historial y anexos.
 
-La etiqueta **DEMO — DATOS FICTICIOS** permanece visible. La demo es de navegación y solo lectura: puedes explorar formularios y generar anexos de los registros sintéticos, pero no guardar cambios, importar documentos ni cargar adjuntos. No introduzcas información real. Se reinicia al cerrar y nunca se conecta a Microsoft 365 ni carga archivos de datos demo anteriores.
+La etiqueta **DEMO — DATOS FICTICIOS** permanece visible. La demo H10D permite guardar formaciones, sesiones y sus asistentes/resultados **solo en memoria**, usando los mismos formularios y validaciones que la aplicación existente. No introduzcas información real. Al cerrar la ventana de trabajo o toda la aplicación se descartan los cambios; volver a abrir restaura exactamente la semilla ficticia. Recargar una página no los borra mientras el servicio siga abierto.
 
-Para probar los flujos de escritura se utiliza el entorno de pruebas automatizadas con Graph simulado o un piloto sintético autorizado por IT; no se promueven datos de demo al entorno corporativo.
+### Prueba completa en cinco minutos
+
+1. Opcional: en **Personal**, añade «Asistente ficticio de prueba», con puesto ficticio y departamento Calidad. También puedes usar las personas Demo existentes.
+2. En **Formaciones → Nueva formación**, indica un nombre ficticio y completa los campos obligatorios. Para una formación interna selecciona un formador cualificado Demo, modalidad, duración, referencia ficticia, contenido, colectivo, método de evaluación y criterio de aptitud. Si eliges «No planificada», escribe también su motivo.
+3. Guarda la formación. En su ficha, **Editar** permite corregir sus datos; el año y código se conservan conforme a las reglas existentes.
+4. Pulsa **Añadir sesión**. Indica fecha, formador, duración y selecciona asistentes ficticios. Guarda; **Editar** permite cambiar datos y añadir/quitar asistentes mientras esté Pendiente. No se admiten duplicados.
+5. Pulsa **Preparar cierre**. Indica la fecha de ejecución y, para cada asistente, Asiste/No asiste y Apto/No apto. **Guardar y finalizar → Finalizar sesión** confirma el resultado. La documentación pendiente no impide ejecutar.
+6. Para corregir resultados ya finalizados, escribe un **Motivo de reapertura**, confirma **Reabrir sesión** y vuelve a finalizar con los resultados corregidos. La auditoría ficticia conserva la operación anterior solo durante esta ejecución.
+7. Pulsa **Generar Anexo III**. Se descarga un PDF de esa sesión con los datos ficticios introducidos, utilizando el generador existente. Puedes abrirlo con tu lector PDF; no es un registro oficial ni una aprobación GMP.
+8. Cierra toda la aplicación y vuelve a abrir el EXE y la demostración. Busca los nombres creados: ya no deben estar. Las personas, formaciones y sesiones Demo originales vuelven a su estado inicial.
+
+Los PDF que descargues voluntariamente permanecen en tu carpeta de descargas: no son una base de datos ni se reimportan al reiniciar. No se exportan ni promueven registros de demo al entorno corporativo. Anexos IV/V y consulta de otros módulos siguen disponibles con datos ficticios.
+
+Importaciones, selección de archivos reales, adjuntos, cambios de controles documentales, cierre documental, administración y Microsoft 365 permanecen bloqueados en servidor. Algunos botones corporativos se conservan por reutilización de la interfaz: muestran el rechazo explícito de demo; no guardan esos cambios. La demo no utiliza SharePoint, Entra ni PostgreSQL y no lee ni escribe `.data`, OneDrive o archivos funcionales previos. El asistente H10C conserva por separado sus identificadores públicos en el perfil, nunca los registros de demo.
 
 ## Preparar el piloto Microsoft 365
 

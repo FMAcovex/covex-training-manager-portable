@@ -17,7 +17,7 @@ try {
   const headers = { Cookie: `covex_desktop_instance=${server.identity.token}`, Origin: origin };
   assert.equal((await fetch(`${origin}/api/health`)).status, 401);
   for (const route of ["/api/health", "/api/people", "/", "/formadores"]) assert.equal((await fetch(`${origin}${route}`, { headers })).status, 200, route);
-  for (const route of ["/api/people", "/api/admin/training-import", "/api/sessions/session-demo-1/document-control/attachments", "/api/portable/session"]) assert.equal((await fetch(`${origin}${route}`, { method: "POST", headers })).status, 403, route);
+  for (const route of ["/api/admin/users", "/api/admin/training-import", "/api/sessions/session-demo-1/document-control/attachments", "/api/portable/session"]) assert.equal((await fetch(`${origin}${route}`, { method: "POST", headers })).status, 403, route);
   for (const route of ["/api/sessions/session-demo-1/annex-iii", "/api/annual-plan/2026/annex-iv", "/api/people/demo-1/annex-v?year=2026"]) {
     const response = await fetch(`${origin}${route}`, { method: "POST", headers });
     assert.equal(response.status, 200, route); assert.equal(Buffer.from(await response.arrayBuffer()).subarray(0, 4).toString(), "%PDF");

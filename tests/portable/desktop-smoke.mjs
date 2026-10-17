@@ -6,6 +6,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { runInteractiveDemoFlow, assertDemoReset } from "./interactive-demo-flow.mjs";
 
 // This suite runs the extracted, packaged EXE, NOT next dev or npm's Electron.
 assert.equal(process.platform, "win32", "Native acceptance must run on Windows");
@@ -99,7 +100,7 @@ try {
   assert.equal((await fetch(`${origin}/api/health`)).status, 401, "External browser cannot access local application APIs");
   assert.equal((await localRequest("/api/health")).status, 200);
   assert.equal((await localRequest("/api/people")).status, 200);
-  for (const route of ["/api/people", "/api/admin/training-import", "/api/admin/trainer-import", "/api/trainers/documents", "/api/sessions/session-demo-1/document-control/attachments"]) assert.equal((await localRequest(route, "POST")).status, 403, `Demo must refuse ${route}`);
+  for (const route of ["/api/admin/users", "/api/admin/training-import", "/api/admin/trainer-import", "/api/trainers/documents", "/api/sessions/session-demo-1/document-control/attachments"]) assert.equal((await localRequest(route, "POST")).status, 403, `Demo must refuse ${route}`);
   assert.equal((await localRequest("/api/portable/config")).status, 403);
   assert.equal((await localRequest("/api/portable/session", "POST")).status, 403);
   for (const route of ["/api/sessions/session-demo-1/annex-iii", "/api/annual-plan/2026/annex-iv", "/api/people/demo-1/annex-v?year=2026"]) {
@@ -114,13 +115,42 @@ try {
   await view.goto(`${origin}/administracion/importar-formaciones`);
   await until(async () => view.locator('input[type="file"]').first().isDisabled(), "Demo file selection must be disabled as well as rejected by server");
   await view.screenshot({ path: path.join(output, "demo-windows-synthetic.png"), fullPage: true });
-  record("demo-health-modules-annexes-readonly-no-corporate-endpoints");
+  record("demo-health-modules-annexes-no-imports-files-or-corporate-endpoints");
+  const demoState = await runInteractiveDemoFlow(view, origin, async (page) => {
+    const file = path.join(output, "anexo-iii-ficticio-windows.pdf");
+    // Observe Electron's real download and direct only this synthetic PDF into
+    // test evidence. This is not a production IPC hook or a mocked generator.
+    await native.evaluate(({ BrowserWindow }, filePath) => {
+      const target = BrowserWindow.getAllWindows().find((window) => window.webContents.getURL().startsWith("http://127.0.0.1:43110"));
+      globalThis.covexSyntheticDownload = null;
+      target.webContents.session.once("will-download", (_event, item) => {
+        item.setSavePath(filePath);
+        item.once("done", (_done, state) => { globalThis.covexSyntheticDownload = { state, filename: item.getFilename() }; });
+      });
+    }, file);
+    await page.getByRole("button", { name: "Generar Anexo III", exact: true }).click();
+    await until(async () => Boolean(await native.evaluate(() => globalThis.covexSyntheticDownload)), "Actual Annex III download must finish");
+    const result = await native.evaluate(() => globalThis.covexSyntheticDownload);
+    assert.equal(result.state, "completed"); assert.match(result.filename, /\.pdf$/i);
+    return { bytes: await readFile(file), filename: result.filename };
+  });
+  await view.screenshot({ path: path.join(output, "interactive-demo-windows.png"), fullPage: true });
+  record("interactive-ui-create-edit-training-session-attendees-results-reopen-annex-iii-download");
   const duplicate = spawn(executable, [], { env, stdio: "ignore", windowsHide: true });
   const duplicateCode = await new Promise((resolve, reject) => { const timer = setTimeout(() => { duplicate.kill(); reject(new Error("Duplicate instance did not exit")); }, 15_000); duplicate.once("exit", (code) => { clearTimeout(timer); resolve(code); }); duplicate.once("error", reject); });
   assert.equal(duplicateCode, 0); assert.equal((await localRequest("/api/health")).status, 200);
   record("single-instance-existing-process-preserved");
+  // Close the whole EXE WHILE the newly created records still exist. Resetting
+  // the service first would make this whole-application assertion vacuous.
+  await native.close(); native = null; view = null;
+  await until(portFree, "Whole EXE exit must release own service");
+  native = await electron.launch({ executablePath: executable, args: [], env, timeout: 60_000 });
+  launcher = await native.firstWindow();
+  await launcher.locator("#version").filter({ hasText: manifest.version }).waitFor();
+  await openDemo(); await assertDemoReset(view, demoState);
+  record("whole-exe-restart-removes-new-records-restores-exact-synthetic-seed");
   await closeView(); record("clean-close-and-port-release");
-  await openDemo(); await closeView(); record("repeat-start-close");
+  await openDemo(); await assertDemoReset(view, demoState); await closeView(); record("repeat-start-close-resets-demo-RAM");
 
   const config = { schemaVersion: 1, tenantId: "11111111-1111-4111-8111-111111111111", clientId: "22222222-2222-4222-8222-222222222222", siteId: "synthetic.sharepoint.com,33333333-3333-4333-8333-333333333333,44444444-4444-4444-8444-444444444444", listPrefix: "COVEX_SYNTHETIC", driveId: "b!synthetic-drive-only", redirectUri: `${origin}/acceso-denegado` };
   for (const [name, value] of Object.entries(config)) if (name !== "schemaVersion" && name !== "redirectUri") await launcher.locator(`#${name}`).fill(value);

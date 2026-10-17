@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { desktopRequestRejection } from "./desktop-policy";
-import { readDemoJson, writeDemoJson } from "@/demo/demo-data-store";
 
 const secret = "b".repeat(64);
 const env = { PORTABLE_DESKTOP_MODE: "demo", PORTABLE_DESKTOP_INSTANCE_ID: "a".repeat(48), PORTABLE_DESKTOP_INSTANCE_TOKEN: secret, APP_ENV: "development", AUTH_MODE: "demo", PERSISTENCE_PROVIDER: "demo", DATABASE_URL: "" };
@@ -14,7 +13,7 @@ describe("desktop isolated modes", () => {
     expect(desktopRequestRejection({ ...request, cookie: "forged" }, env)?.status).toBe(401);
     expect(desktopRequestRejection(request, { ...env, PORTABLE_DESKTOP_INSTANCE_TOKEN: "" })?.status).toBe(503);
   });
-  it.each(["/api/admin/training-import", "/api/admin/trainer-import", "/api/trainers/documents", "/api/people", "/api/sessions/synthetic/document-control/attachments"])("blocks real input in desktop demo: %s", (path) => {
+  it.each(["/api/admin/training-import", "/api/admin/trainer-import", "/api/trainers/documents", "/api/admin/users", "/api/trainings/id/close", "/api/people/id/activate", "/api/sessions/synthetic/document-control/attachments", "/api/sessions/id/not-executed", "/api/trainings/id/sessions/extra", "/api/sessions/id%2Fother/finalize", "/api/sessions/id/../finalize", "/api/portable/session"])("blocks unauthorized input in desktop demo: %s", (path) => {
     expect(desktopRequestRejection({ ...request, method: "POST", path }, env)?.status).toBe(403);
   });
   it("allows synthetic annex generation but rejects cross-origin requests and corporate APIs", () => {
@@ -25,9 +24,19 @@ describe("desktop isolated modes", () => {
     expect(desktopRequestRejection(request, { ...env, DATABASE_URL: "postgresql://forbidden" })?.status).toBe(503);
     expect(desktopRequestRejection(request, { ...env, PORTABLE_DESKTOP_MODE: "corporate" })?.status).toBe(503);
   });
-  it("never loads or persists local data in the desktop demonstration", () => {
-    vi.stubEnv("PORTABLE_DESKTOP_MODE", "demo");
-    expect(readDemoJson("people-current.json")).toBeUndefined();
-    expect(() => writeDemoJson("people-current.json", [])).toThrow("solo lectura");
+  it.each([
+    ["POST", "/api/people"], ["POST", "/api/trainings"], ["PATCH", "/api/trainings/synthetic-1"],
+    ["POST", "/api/trainings/synthetic-1/sessions"], ["PATCH", "/api/sessions/synthetic-1"],
+    ["POST", "/api/sessions/synthetic-1/finalize"], ["POST", "/api/sessions/synthetic-1/reopen"],
+    ["POST", "/api/sessions/synthetic-1/annex-iii"], ["POST", "/api/annual-plan/2026/annex-iv"], ["POST", "/api/people/synthetic-1/annex-v"],
+  ])("permits only the exact synthetic workflow: %s %s", (method, path) => {
+    expect(desktopRequestRejection({ ...request, method, path }, env)).toBeUndefined();
+    for (const origin of [null, "null", "http://localhost:43110", "https://attacker.invalid"]) expect(desktopRequestRejection({ ...request, method, path, origin }, env)?.status).toBe(403);
+    for (const wrongMethod of ["PUT", "DELETE", "TRACE", method === "PATCH" ? "POST" : "PATCH"]) expect(desktopRequestRejection({ ...request, method: wrongMethod, path }, env)?.status).toBe(403);
+  });
+  it("preserves corporate H10C policy and never enables demo writes for mixed configurations", () => {
+    const corporate = { ...env, PORTABLE_DESKTOP_MODE: "corporate", APP_ENV: "production", AUTH_MODE: "portable-entra", PERSISTENCE_PROVIDER: "portable-sharepoint" };
+    expect(desktopRequestRejection({ ...request, method: "POST", path: "/api/admin/training-import" }, corporate)).toBeUndefined();
+    for (const change of [{ APP_ENV: "production" }, { AUTH_MODE: "portable-entra" }, { PERSISTENCE_PROVIDER: "portable-sharepoint" }, { DATABASE_URL: "postgresql://forbidden" }]) expect(desktopRequestRejection({ ...request, method: "POST" }, { ...env, ...change })?.status).toBe(503);
   });
 });

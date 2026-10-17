@@ -356,3 +356,13 @@ El contenido web no recibe el puente privilegiado del asistente. Se mantiene `12
 La opción segura autorizada por el Issue es una demo explícita de navegación y generación de anexos ficticios, no una réplica editable: se bloquean mutaciones/importaciones/adjuntos y cualquier API corporativa, no se leen archivos `.data` ni variables corporativas heredadas. No hay promoción ni sincronización de datos demo. El piloto corporativo exige Entra real; no hereda identidad demo.
 
 El resultado técnico de CI no autoriza datos reales ni uso GMP. Siguen abiertos D-063 y los bloqueos de permisos efectivos Graph, auditoría, reconciliación y recuperación. Firma de código, Windows físico/usuario estándar, AV, MFA y aceptación de dos usuarios/dos equipos requieren IT y Calidad. Sin actualización remota automática ni firma con credenciales inventadas.
+
+## D-065 — H10D: demo interactiva exclusivamente en memoria
+
+Por petición expresa del responsable (Issue #7), se sustituye únicamente la condición de solo lectura de la demo Windows de D-064. Se permiten alta/edición de formación y sesión, alta de persona ficticia, gestión de asistentes, finalización de resultados y reapertura motivada para corregirlos. Se reutilizan formularios, validaciones, permisos, repositorios y documentos existentes; no se cambian modelos ni reglas funcionales.
+
+En `PORTABLE_DESKTOP_MODE=demo`, el almacén JSON no lee ni escribe: los repositorios y su auditoría solo conservan sus arrays de proceso. Cada nuevo servicio reconstruye la semilla sintética y sus contadores; no hay exportación/importación ni promoción corporativa. Solo se descargan expresamente documentos sintéticos (Anexos III/IV/V y registro de formadores existente); esos archivos voluntarios no son persistencia de la aplicación.
+
+Una allowlist exacta por método/ruta en servidor limita las mutaciones. Siguen denegados importaciones, adjuntos, controles/cierre documental, administración no necesaria y todas las API portable corporativas. Se conservan host/cookie/Origin y aislamiento de red/entorno/lifecycle H10C. La modalidad corporativa H10C, los 22 adaptadores H10B, H9A y el original no se alteran. La prueba nativa ejecuta el ZIP extraído, descarga el PDF y reinicia el EXE completo para verificar ausencia de registros.
+
+**NO-GO corporativo / GMP** se mantiene: las pruebas sintéticas o Windows CI no validan Entra/SharePoint reales, permisos, auditoría ni recuperación con COVEX.

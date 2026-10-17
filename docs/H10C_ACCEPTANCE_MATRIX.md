@@ -1,5 +1,7 @@
 # H10C — matriz de aceptación
 
+Nota H10D: esta matriz conserva la aceptación de la base H10C. Su condición histórica de demo de solo lectura queda sustituida por [H10D](H10D_RESULT.md): cambios autorizados solo RAM y reinicio completo del EXE verificado, sin ampliar la aceptación corporativa.
+
 Estados: **CI simulado** indica automatización con datos sintéticos; **CI Windows nativo** ejecuta el EXE empaquetado en el runner; **manual Windows pendiente** y **IT/Calidad pendiente** requieren evidencia corporativa. La ejecución concreta y sus artefactos se consultan en la PR H10C. Ninguna fila CI equivale a aceptación GMP.
 
 | Caso | Automatización / evidencia | Estado de aceptación |

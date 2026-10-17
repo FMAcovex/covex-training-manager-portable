@@ -1,6 +1,18 @@
 # Estado actual del proyecto
 
-## H10C — entrega Windows candidata
+## H10D — demo interactiva Windows candidata
+
+- Especificación: Issue #7; base `400e535dd14a4620c23c7676f8bb81710421b181`; rama `feature/h10d-interactive-demo`.
+- Candidata `0.4.0-rc.1`: formularios, validaciones, repositorios RAM y generadores existentes, sin rediseño ni cambios de modelo.
+- Demo: alta/edición de formación y sesión, alta de persona ficticia, selección/edición de asistentes, resultados, finalización y reapertura motivada. Anexo III de la sesión creada; IV/V conservados.
+- Cambios y auditoría solo RAM. Al cerrar el servicio o EXE y reabrir se reconstruye la semilla sintética, sin leer/escribir `.data` ni otros almacenes funcionales. Los PDF descargados expresamente sí permanecen como archivos del usuario.
+- Allowlist exacta método/ruta: importaciones, adjuntos, conexiones corporativas y administración no necesaria denegados; host, cookie, Origin, aislamiento y lifecycle H10C conservados.
+- Pruebas nuevas: política y ausencia de E/S, flujo completo UI, PDF real y reinicio de proceso; la CI Windows repite el flujo sobre el EXE extraído y reinicia el EXE completo.
+- Guías: `GUIA_INICIO_WINDOWS.md` y `H10D_RESULT.md`; D-065 sustituye únicamente la restricción demo de solo lectura de D-064.
+- H10C corporativo, H10B (22 modelos/adaptadores), H9A y repositorio original intactos. Una PR en borrador; sin squash ni merge.
+- **NO-GO para datos corporativos / GMP**, hasta piloto real y aceptación IT/Calidad: Entra, SharePoint, permisos, auditoría y recuperación. Windows físicos, usuario estándar, firma/AV pendientes.
+
+## H10C — entrega Windows candidata (histórico; demo ampliada por H10D)
 
 - Base aprobada `6fa4aee00356453fb3e0b0435a48e9bbaa4e3b25`; rama `feature/h10c-windows-portable-delivery`.
 - Versión `0.3.0-rc.1`: ZIP con EXE/runtime, README de inicio, manifiesto e integridad SHA-256.

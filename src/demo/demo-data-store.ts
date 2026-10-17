@@ -19,7 +19,10 @@ export function readDemoJson<T>(fileName: string): T | undefined {
 }
 
 export function writeDemoJson(fileName: string, value: unknown) {
-  if (process.env.PORTABLE_DESKTOP_MODE === "demo") throw new Error("DEMO — DATOS FICTICIOS: demostración portable de solo lectura");
+  // Existing repositories own their mutable process-local arrays and audit log.
+  // Desktop demo deliberately has NO persistence sink (nor filesystem reads).
+  // A fresh server process reconstructs the synthetic seed, including counters.
+  if (process.env.PORTABLE_DESKTOP_MODE === "demo") return;
   const path = dataPath(fileName);
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
