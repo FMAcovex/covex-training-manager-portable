@@ -4,7 +4,11 @@ import { portableAccessToken } from "@/portable/auth/server-session";
 import { portableListName, type PortableListModel } from "@/portable/sharepoint/schema";
 import { createHash } from "node:crypto";
 
-const MAX_PAYLOAD_LENGTH = 55_000;
+export const MAX_PAYLOAD_LENGTH = 55_000;
+
+export function validatePortablePayload(data: unknown) {
+  if (JSON.stringify(data).length > MAX_PAYLOAD_LENGTH) throw new Error("El registro supera el límite seguro de SharePoint; divide el contenido o archívalo como documento.");
+}
 
 export type PortableRecord<T> = {
   id: string;
@@ -51,6 +55,7 @@ function escapeOData(value: string) { return value.replace(/'/g, "''"); }
 function uniqueIndex(value: string) { return value.length <= 255 ? value : `sha256:${createHash("sha256").update(value).digest("hex")}`; }
 
 function fieldsFor<T>(id: string, data: T, indexes: PortableRecordIndexes = {}) {
+  validatePortablePayload(data);
   const payload = JSON.stringify(data);
   if (payload.length > MAX_PAYLOAD_LENGTH) throw new Error("El registro supera el límite seguro de SharePoint; divide el contenido o archívalo como documento.");
   return {
@@ -226,6 +231,7 @@ export class InMemoryPortableEntityStore implements PortableEntityStore {
   }
   async create<T>(model: PortableListModel, id: string, data: T, indexes: PortableRecordIndexes = {}) {
     const rows = this.rows(model);
+    validatePortablePayload(data);
     indexes = { ...indexes, uniqueKey: uniqueIndex(indexes.uniqueKey ?? id) };
     if (rows.has(id) || (indexes.uniqueKey && [...rows.values()].some((item) => item.uniqueKey === indexes.uniqueKey))) {
       throw new GraphConflictError("El registro o su clave única ya existen.");
@@ -236,6 +242,7 @@ export class InMemoryPortableEntityStore implements PortableEntityStore {
   }
   async update<T>(model: PortableListModel, current: PortableRecord<unknown>, data: T, indexes: PortableRecordIndexes = {}) {
     const rows = this.rows(model); const stored = rows.get(current.id);
+    validatePortablePayload(data);
     indexes = { ...indexes, uniqueKey: uniqueIndex(indexes.uniqueKey ?? current.id) };
     if (!stored || stored.eTag !== current.eTag) throw new GraphConflictError();
     if (indexes.uniqueKey && [...rows.values()].some((item) => item.id !== current.id && item.uniqueKey === indexes.uniqueKey)) throw new GraphConflictError("La clave única ya existe.");

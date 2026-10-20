@@ -8,21 +8,35 @@ import { formatSessionCode, type FinalizeSessionInput, type NotExecutedInput, ty
 import { formatTrainingCode, matchesTrainingFilters, type Training, type TrainingFilters, type TrainingInput } from "@/domain/training";
 import type { TrainingCatalogs } from "@/domain/training-catalogs";
 import { GraphConflictError } from "@/portable/graph/graph-client";
-import type { PortableEntityStore, PortableRecord } from "@/portable/sharepoint/entity-store";
+import { MAX_PAYLOAD_LENGTH, validatePortablePayload, type PortableEntityStore, type PortableRecord } from "@/portable/sharepoint/entity-store";
 import { PortableUnitOfWork } from "@/portable/sharepoint/unit-of-work";
-import { PeopleDepartmentReferenceError, type PeopleRepository } from "@/server/people-repository";
-import { InMemorySessionRepository, type HistoricalSessionImportInput, type SessionRepository } from "@/server/session-repository";
+import { PeopleDepartmentReferenceError, PeopleDuplicateCodeError, type PeopleRepository } from "@/server/people-repository";
+import { InMemorySessionRepository, SessionConflictError, type HistoricalSessionImportInput, type SessionRepository } from "@/server/session-repository";
+import { createHash } from "node:crypto";
 import { TrainingCatalogReferenceError, TrainingClosureError, TrainingConflictError, TrainingYearImmutableError, type TrainingRepository } from "@/server/training-repository";
 
 const clone = <T>(value: T): T => structuredClone(value);
 const idFor = (left: string, right: string) => `${left}:${right}`;
+const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+type AuditPayload = { storage: "audit-chunks-v1"; count: number; sha256: string };
+type AuditChunk = { storage: "audit-chunk-v1"; eventId: string; index: number; text: string };
 
 export class PortableAuditEventRepository implements AuditEventRepository {
   constructor(private readonly store: PortableEntityStore) {}
 
   async append(input: AuditEventInput) {
     const event: AuditEvent = { ...clone(input), id: crypto.randomUUID(), timestamp: new Date().toISOString() };
-    await this.store.create("AuditEvent", event.id, event, {
+    let stored: AuditEvent | AuditPayload = event;
+    const serialized = JSON.stringify(event);
+    if (serialized.length > MAX_PAYLOAD_LENGTH) {
+      // Keep the complete before/after/context, without inflating the root list field.
+      const chunks = serialized.match(/[\s\S]{1,8000}/g)!;
+      for (const [index, text] of chunks.entries()) {
+        await this.store.create<AuditChunk>("AuditEvent", `${event.id}:payload:${index}`, { storage: "audit-chunk-v1", eventId: event.id, index, text }, { parentId: event.id, status: "PAYLOAD" });
+      }
+      stored = { storage: "audit-chunks-v1", count: chunks.length, sha256: digest(serialized) };
+    }
+    await this.store.create("AuditEvent", event.id, stored, {
       parentId: event.entityId,
       status: event.action,
       correlationId: typeof event.contextJson === "object" && event.contextJson && "correlationId" in event.contextJson
@@ -36,8 +50,22 @@ export class PortableAuditEventRepository implements AuditEventRepository {
     const limit = Math.min(Math.max(filters.limit ?? 100, 1), 200);
     const offset = Math.max(filters.offset ?? 0, 0);
     const search = filters.search?.trim().toLocaleLowerCase("es");
-    return (await this.store.list<AuditEvent>("AuditEvent"))
-      .map((item) => item.data)
+    const rows = await this.store.list<AuditEvent | AuditPayload | AuditChunk>("AuditEvent");
+    const events: AuditEvent[] = [];
+    for (const row of rows) {
+      if ("storage" in row.data && row.data.storage === "audit-chunk-v1") continue;
+      if (!("storage" in row.data)) { events.push(row.data); continue; }
+      const manifest = row.data as AuditPayload;
+      if (manifest.storage !== "audit-chunks-v1" || !Number.isSafeInteger(manifest.count) || manifest.count < 1 || manifest.count > rows.length) throw new Error("Manifiesto de auditoría no válido.");
+      const chunks = rows.filter((item) => "storage" in item.data && item.data.storage === "audit-chunk-v1" && item.data.eventId === row.id).map((item) => item.data as AuditChunk).sort((a, b) => a.index - b.index);
+      if (chunks.length !== manifest.count || chunks.some((item, index) => item.index !== index)) throw new Error("Faltan segmentos de auditoría; solicita revisión a IT.");
+      const text = chunks.map((chunk) => chunk.text).join("");
+      if (digest(text) !== manifest.sha256) throw new Error("La auditoría no supera la comprobación de integridad.");
+      const event = JSON.parse(text) as AuditEvent;
+      if (event.id !== row.id) throw new Error("Identidad de auditoría no válida.");
+      events.push(event);
+    }
+    return events
       .filter((event) => (!filters.entityType || event.entityType === filters.entityType)
         && (!filters.action || event.action === filters.action)
         && (!filters.actorUserId || event.actorUserId === filters.actorUserId)
@@ -66,6 +94,7 @@ export class PortablePeopleRepository implements PeopleRepository {
 
   async create(input: PersonInput, actorUserId?: string) {
     await this.validateDepartment(input);
+    await this.validateEmployeeCode(input);
     const person: Person = { ...clone(input), id: crypto.randomUUID(), active: true };
     let created: PortableRecord<Person> | undefined;
     await new PortableUnitOfWork(this.store).execute("PERSON_CREATE", [
@@ -81,6 +110,7 @@ export class PortablePeopleRepository implements PeopleRepository {
     const current = await this.store.get<Person>("Person", id);
     if (!current) return undefined;
     await this.validateDepartment(input, current.data);
+    await this.validateEmployeeCode(input, id);
     const updated = { ...current.data, ...clone(input) };
     await this.store.update("Person", current, updated, { uniqueKey: updated.employeeCode || undefined, status: updated.active ? "ACTIVE" : "INACTIVE" });
     if (actorUserId) await this.audit.append({ actorUserId, entityType: "PERSON", entityId: id, action: "PERSON_UPDATED", beforeJson: current.data, afterJson: updated });
@@ -97,6 +127,11 @@ export class PortablePeopleRepository implements PeopleRepository {
   }
 
   activate(id: string, actorUserId?: string) { return this.setActive(id, true, actorUserId); }
+  private async validateEmployeeCode(input: PersonInput, exceptId?: string) {
+    if (!input.employeeCode) return;
+    const prior = await this.store.findUnique<Person>("Person", input.employeeCode);
+    if (prior && prior.id !== exceptId) throw new PeopleDuplicateCodeError();
+  }
   deactivate(id: string, actorUserId?: string) { return this.setActive(id, false, actorUserId); }
   async listDepartments(options?: { includeInactive?: boolean }) {
     const rows = (await this.store.list<Department>("Department")).map((item) => item.data);
@@ -253,23 +288,49 @@ export class PortableSessionRepository implements SessionRepository {
     private readonly audit: AuditEventRepository,
   ) {}
 
-  async listAll() { return (await this.store.list<TrainingSession>("TrainingSession")).map((item) => clone(item.data)); }
-  async listByTraining(trainingId: string) { return (await this.store.list<TrainingSession>("TrainingSession", { parentId: trainingId })).map((x) => clone(x.data)).sort((a, b) => a.code.localeCompare(b.code)); }
+  private async readSessions(rows: Array<PortableRecord<StoredSession>>) {
+    if (!rows.length) return [];
+    const attendances = rows.length === 1
+      ? await this.store.list<TrainingSession["attendances"][number]>("Attendance", { parentId: rows[0].id })
+      : await this.store.list<TrainingSession["attendances"][number]>("Attendance");
+    const bySession = new Map<string, TrainingSession["attendances"]>();
+    for (const { data } of attendances) {
+      const group = bySession.get(data.sessionId) ?? [];
+      group.push(data); bySession.set(data.sessionId, group);
+    }
+    return rows.map(({ data }) => {
+      if (data.attendanceStorage === undefined) {
+        if (!Array.isArray(data.attendances)) throw new Error("La sesión no contiene un registro de asistencias válido.");
+        return clone(data as TrainingSession);
+      }
+      if (data.attendanceStorage !== "rows-v1") throw new Error("Versión de almacenamiento de asistencias no soportada.");
+      const { attendanceCount, attendanceHash } = data;
+      const session = { ...data };
+      delete session.attendanceStorage; delete session.attendanceCount; delete session.attendanceHash;
+      const items = bySession.get(data.id) ?? [];
+      if (items.length !== attendanceCount || attendanceDigest(items) !== attendanceHash || new Set(items.map((item) => item.personId)).size !== items.length) throw new Error("La sesión tiene asistencias incompletas o modificadas. Solicita revisión a IT.");
+      return clone({ ...session, attendances: items } as TrainingSession);
+    });
+  }
+  async listAll() { return this.readSessions(await this.store.list<StoredSession>("TrainingSession")); }
+  async listByTraining(trainingId: string) { return (await this.readSessions(await this.store.list<StoredSession>("TrainingSession", { parentId: trainingId }))).sort((a, b) => a.code.localeCompare(b.code)); }
   async listByTrainingIds(trainingIds: string[]) { const ids = new Set(trainingIds); return (await this.listAll()).filter((item) => ids.has(item.trainingId)).sort((a, b) => a.code.localeCompare(b.code)); }
   async listByPerson(personId: string) { return (await this.listAll()).filter((item) => item.attendances.some((attendance) => attendance.personId === personId)); }
-  async findById(id: string) { return clone((await this.store.get<TrainingSession>("TrainingSession", id))?.data); }
+  async findById(id: string) { const row = await this.store.get<StoredSession>("TrainingSession", id); return row ? (await this.readSessions([row]))[0] : undefined; }
   async trainingStatus(trainingId: string): Promise<TrainingGlobalStatus> { const { calculateTrainingStatus } = await import("@/domain/training-session"); return calculateTrainingStatus(await this.listByTraining(trainingId)); }
 
-  private async engine() { return new InMemorySessionRepository(this.trainings, this.people, await this.listAll(), new InMemoryAuditEventRepository()); }
+  private async engine(audit = new InMemoryAuditEventRepository()) { return new InMemorySessionRepository(this.trainings, this.people, await this.listAll(), audit); }
 
-  private async persist(session: TrainingSession, current?: PortableRecord<TrainingSession>) {
-    let persisted: PortableRecord<TrainingSession> | undefined;
+  private async persist(session: TrainingSession, current?: PortableRecord<StoredSession>, previous?: TrainingSession) {
+    const stored = sessionData(session);
+    validateSessionCapacity(session);
+    let persisted: PortableRecord<StoredSession> | undefined;
     await new PortableUnitOfWork(this.store).execute(current ? "SESSION_UPDATE" : "SESSION_CREATE", [
       {
         name: "session",
         execute: async () => { persisted = current
-          ? await this.store.update("TrainingSession", current, session, { uniqueKey: session.code, parentId: session.trainingId, status: session.executionStatus })
-          : await this.store.create("TrainingSession", session.id, session, { uniqueKey: session.code, parentId: session.trainingId, status: session.executionStatus }); },
+          ? await this.store.update("TrainingSession", current, stored, { uniqueKey: session.code, parentId: session.trainingId, status: session.executionStatus })
+          : await this.store.create("TrainingSession", session.id, stored, { uniqueKey: session.code, parentId: session.trainingId, status: session.executionStatus }); },
         compensate: async () => {
           if (!persisted) return;
           if (current) await this.store.update("TrainingSession", persisted, current.data, { uniqueKey: current.data.code, parentId: current.data.trainingId, status: current.data.executionStatus });
@@ -280,7 +341,7 @@ export class PortableSessionRepository implements SessionRepository {
         name: "relations",
         execute: () => this.syncChildren(session),
         compensate: async () => {
-          if (current) await this.syncChildren(current.data);
+          if (current && previous) await this.syncChildren(previous);
           else for (const model of ["TrainingSessionTrainer", "Attendance"] as const) {
             for (const row of await this.store.list(model, { parentId: session.id })) await this.store.delete(model, row);
           }
@@ -303,13 +364,20 @@ export class PortableSessionRepository implements SessionRepository {
     for (const item of desired.values()) await this.store.create("Attendance", item.id, item, { parentId: session.id, uniqueKey: idFor(session.id, item.personId), status: item.attendanceStatus });
   }
 
-  private async saveMutation(id: string, action: string, actor: CurrentUser, mutate: (engine: InMemorySessionRepository) => Promise<TrainingSession | undefined>) {
-    const current = await this.store.get<TrainingSession>("TrainingSession", id);
+  private async saveMutation(id: string, action: string, actor: CurrentUser, mutate: (engine: InMemorySessionRepository) => Promise<TrainingSession | undefined>, expectedUpdatedAt?: string) {
+    const current = await this.store.get<StoredSession>("TrainingSession", id);
     if (!current) return undefined;
-    const updated = await mutate(await this.engine());
+    if (expectedUpdatedAt && current.data.updatedAt !== expectedUpdatedAt) throw new SessionConflictError();
+    const previous = (await this.readSessions([current]))[0];
+    const domainAudit = new InMemoryAuditEventRepository();
+    const updated = await mutate(await this.engine(domainAudit));
     if (!updated) return undefined;
-    await this.persist(updated, current);
-    await this.audit.append({ actorUserId: actor.id, entityType: "TRAINING_SESSION", entityId: id, action, beforeJson: current.data, afterJson: updated });
+    updated.updatedAt = new Date(Math.max(Date.now(), Date.parse(previous.updatedAt) + 1)).toISOString();
+    validateSessionCapacity(updated);
+    const events = await domainAudit.list();
+    await this.persist(updated, current, previous);
+    const event = events.find((item) => item.entityId === id);
+    await this.audit.append({ actorUserId: actor.id, entityType: "TRAINING_SESSION", entityId: id, action: event?.action ?? action, beforeJson: previous, afterJson: updated, contextJson: event?.contextJson });
     return clone(updated);
   }
 
@@ -317,6 +385,7 @@ export class PortableSessionRepository implements SessionRepository {
     const session = await (await this.engine()).create(input, actor);
     const training = await this.trainings.findById(session.trainingId);
     if (!training) throw new Error("La formación asociada no existe");
+    validateSessionCapacity(session);
     const sequence = await reserveSequence(this.store, "SessionCodeSequence", session.trainingId, 99);
     session.code = formatSessionCode(training.code, sequence);
     await this.persist(session);
@@ -324,7 +393,7 @@ export class PortableSessionRepository implements SessionRepository {
     return clone(session);
   }
 
-  update(id: string, input: SessionInput, actor: CurrentUser) { return this.saveMutation(id, "TRAINING_SESSION_UPDATED", actor, (engine) => engine.update(id, input, actor)); }
+  update(id: string, input: SessionInput, actor: CurrentUser, expectedUpdatedAt?: string) { return this.saveMutation(id, "TRAINING_SESSION_UPDATED", actor, (engine) => engine.update(id, input, actor, expectedUpdatedAt), expectedUpdatedAt); }
   finalize(id: string, input: FinalizeSessionInput, actor: CurrentUser) { return this.saveMutation(id, "TRAINING_SESSION_EXECUTED", actor, (engine) => engine.finalize(id, input, actor)); }
   markNotExecuted(id: string, input: NotExecutedInput, actor: CurrentUser) { return this.saveMutation(id, "TRAINING_SESSION_NOT_EXECUTED", actor, (engine) => engine.markNotExecuted(id, input, actor)); }
   reopen(id: string, reason: string, actor: CurrentUser) { return this.saveMutation(id, "TRAINING_SESSION_REOPENED", actor, (engine) => engine.reopen(id, reason, actor)); }
@@ -333,9 +402,26 @@ export class PortableSessionRepository implements SessionRepository {
     const session = await (await this.engine()).importHistorical(input, actor);
     const training = await this.trainings.findById(session.trainingId);
     if (!training) throw new Error("La formación asociada no existe");
+    validateSessionCapacity(session);
     session.code = formatSessionCode(training.code, await reserveSequence(this.store, "SessionCodeSequence", session.trainingId, 99));
     await this.persist(session);
     await this.audit.append({ actorUserId: actor.id, entityType: "TRAINING_SESSION", entityId: session.id, action: "TRAINING_SESSION_IMPORTED", afterJson: session });
     return clone(session);
   }
+}
+
+type StoredSession = Omit<TrainingSession, "attendances"> & {
+  attendances?: TrainingSession["attendances"];
+  attendanceStorage?: "rows-v1";
+  attendanceCount?: number;
+  attendanceHash?: string;
+};
+const attendanceDigest = (items: TrainingSession["attendances"]) => digest(JSON.stringify([...items].sort((a, b) => a.id.localeCompare(b.id))));
+function sessionData(session: TrainingSession): StoredSession {
+  const { attendances, ...data } = session;
+  return { ...data, attendanceStorage: "rows-v1", attendanceCount: attendances.length, attendanceHash: attendanceDigest(attendances) };
+}
+function validateSessionCapacity(session: TrainingSession) {
+  validatePortablePayload(sessionData(session));
+  for (const attendance of session.attendances) validatePortablePayload(attendance);
 }

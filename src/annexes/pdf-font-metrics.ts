@@ -28,7 +28,7 @@ const BASE_CHARACTER: Record<string, string> = {
 };
 
 export function measureTextWidth(text: string, fontSize: number, bold = false): number {
-  return [...text].reduce((total, raw) => {
+  return [...text.normalize("NFC")].reduce((total, raw) => {
     const character = BASE_CHARACTER[raw] ?? raw;
     const width = (bold ? HELVETICA_BOLD_OVERRIDES[character] : undefined) ?? HELVETICA_WIDTHS[character] ?? 600;
     return total + width * fontSize / 1000;

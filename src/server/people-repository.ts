@@ -15,6 +15,9 @@ export interface PeopleRepository {
   listDepartments(options?: { includeInactive?: boolean }): Promise<Department[]>;
 }
 export class PeopleDepartmentReferenceError extends Error {}
+export class PeopleDuplicateCodeError extends Error {
+  constructor() { super("El código de empleado ya pertenece a otra persona, activa o histórica."); }
+}
 
 export class InMemoryPeopleRepository implements PeopleRepository {
   private people: Person[];
@@ -46,6 +49,7 @@ export class InMemoryPeopleRepository implements PeopleRepository {
   }
   async create(input: PersonInput, actorUserId?: string) {
     this.validateDepartment(input);
+    this.validateEmployeeCode(input);
     const person = { ...input, id: crypto.randomUUID(), active: true };
     if (actorUserId && this.audit) await this.audit.append({ actorUserId, entityType: "PERSON", entityId: person.id, action: "PERSON_CREATED", afterJson: person });
     this.people = [...this.people, person];
@@ -57,6 +61,7 @@ export class InMemoryPeopleRepository implements PeopleRepository {
     const existing = await this.findById(id);
     if (!existing) return undefined;
     this.validateDepartment(input, existing);
+    this.validateEmployeeCode(input, id);
     const updated = { ...existing, ...input };
     if (actorUserId && this.audit) await this.audit.append({ actorUserId, entityType: "PERSON", entityId: id, action: "PERSON_UPDATED", beforeJson: existing, afterJson: updated });
     this.people = this.people.map((person) => person.id === id ? updated : person);
@@ -82,4 +87,7 @@ export class InMemoryPeopleRepository implements PeopleRepository {
     return structuredClone(updated);
   }
   async listDepartments(options?: { includeInactive?: boolean }) { return options?.includeInactive ? this.departments : this.departments.filter((department) => department.active); }
+  private validateEmployeeCode(input: PersonInput, exceptId?: string) {
+    if (input.employeeCode && this.people.some((person) => person.id !== exceptId && person.employeeCode === input.employeeCode)) throw new PeopleDuplicateCodeError();
+  }
 }

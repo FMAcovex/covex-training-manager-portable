@@ -1,5 +1,14 @@
 # Estado actual del proyecto
 
+## Fase correctiva integral de auditoría — en verificación
+
+- Autorización: puntos 1–5 de la auditoría del 20/10/2026; D-066 recoge la decisión explícita sobre reapertura.
+- Correcciones: versión original de edición de Sesión, contexto/acciones de auditoría, alta bloqueada en Formación cerrada, duplicados sin bloqueo global, capacidad de asistentes, controles sin cambios, plazo Graph, recuperación del formulario y catálogos, filtros/paginación de Personal y diálogos accesibles.
+- PDF: conservación de WinAnsi, rechazo explícito de caracteres no representables; pendiente plantilla Unicode aprobada. No se cambian geometría ni tipografía controladas.
+- Dependencias: Next/eslint-config-next 15.5.28, Vitest 4.1.11 y revisiones transitivas; excepción `braces` de lint sin revisión publicada. Ver `AUDIT_CORRECTIONS.md`.
+- Pruebas sintéticas y regresión en curso; no confundirlas con validación real. Se preservan los 22 modelos y proveedores existentes; sin cambios en el repositorio original.
+- **NO-GO corporativo / GMP** hasta validación real IT/Calidad de Entra, SharePoint, permisos, auditoría, restauración y Windows corporativo. La demo sigue siendo RAM temporal y los registros oficiales se firman en papel.
+
 ## H10D — demo interactiva Windows candidata
 
 - Especificación: Issue #7; base `400e535dd14a4620c23c7676f8bb81710421b181`; rama `feature/h10d-interactive-demo`.

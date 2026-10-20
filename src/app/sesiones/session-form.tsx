@@ -9,6 +9,7 @@ import type { TrainerQualification } from "@/domain/trainer";
 import { sessionInputSchema, type TrainingSession } from "@/domain/training-session";
 import type { ZodIssue } from "zod";
 import type { Training } from "@/domain/training";
+import { ApiClientError, apiJson, isAbortError } from "@/app/lib/api-client";
 
 type State = { plannedDate: string; trainerPersonIds: string[]; externalTrainerNamesText: string; durationMinutes: string; blankAttendanceRows: string; notes: string; attendeePersonIds: string[] };
 type FieldErrors = Partial<Record<"plannedDate" | "trainerPersonIds" | "externalTrainerNames" | "durationMinutes" | "blankAttendanceRows" | "notes" | "attendeePersonIds", string>>;
@@ -40,7 +41,28 @@ export default function SessionForm({ training, initial, onSaved }: { training: 
   const [trainerQualifications, setTrainerQualifications] = useState<TrainerQualification[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [error, setError] = useState(""); const [fieldErrors, setFieldErrors] = useState<FieldErrors>({}); const [saved, setSaved] = useState(""); const [saving, setSaving] = useState(false);
-  useEffect(() => { void Promise.all([fetch("/api/people").then((r) => r.json()), fetch("/api/departments?includeInactive=true").then((r) => r.json()), fetch("/api/trainers?currentOnly=true").then((r) => r.json())]).then(([p, d, q]) => { setPeople(p); setDepartments(d); setTrainerQualifications(q); }); }, []);
+  const [optionsReady, setOptionsReady] = useState(false);
+  const [optionsAttempt, setOptionsAttempt] = useState(0);
+  const [uncertainSave, setUncertainSave] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    setOptionsReady(false);
+    void Promise.all([
+      apiJson<Person[]>("/api/people", { signal: controller.signal }),
+      apiJson<Department[]>("/api/departments?includeInactive=true", { signal: controller.signal }),
+      apiJson<TrainerQualification[]>("/api/trainers?currentOnly=true", { signal: controller.signal }),
+    ]).then(([p, d, q]) => {
+      if (!Array.isArray(p) || !Array.isArray(d) || !Array.isArray(q)) throw new Error("Catálogo no válido");
+      if (controller.signal.aborted) return;
+      setPeople(p); setDepartments(d); setTrainerQualifications(q); setOptionsReady(true); setError("");
+    }).catch((caught) => {
+      if (controller.signal.aborted || isAbortError(caught)) return;
+      setError(caught instanceof ApiClientError && caught.status === 401
+        ? "La sesión ha caducado. Conserva el borrador e inicia sesión de nuevo antes de recargar las opciones."
+        : "No se pudieron cargar las opciones. Conserva el borrador y vuelve a cargar las opciones.");
+    });
+    return () => controller.abort();
+  }, [optionsAttempt]);
   const attendeeSet = new Set(form.attendeePersonIds);
   const trainerSet = new Set(form.trainerPersonIds);
   const closedSession = initial?.executionStatus === "EXECUTED" || initial?.executionStatus === "NOT_EXECUTED";
@@ -57,6 +79,7 @@ export default function SessionForm({ training, initial, onSaved }: { training: 
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving || !optionsReady || uncertainSave) return;
     const parsed = sessionInputSchema.safeParse({
       trainingId: training.id, plannedDate: form.plannedDate, durationMinutes: form.durationMinutes, blankAttendanceRows: form.blankAttendanceRows, notes: form.notes,
       attendeePersonIds: form.attendeePersonIds, trainerPersonIds: form.trainerPersonIds,
@@ -70,15 +93,24 @@ export default function SessionForm({ training, initial, onSaved }: { training: 
       return;
     }
     setSaving(true); setError(""); setSaved(""); setFieldErrors({});
-    const response = await fetch(initial ? `/api/sessions/${initial.id}` : `/api/trainings/${training.id}/sessions`, { method: initial ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(parsed.data) });
-    const result = await response.json(); setSaving(false);
-    if (!response.ok) { setError(result.error ?? "No se ha podido guardar"); return; }
-    if (initial) { setSaved("Cambios guardados correctamente"); onSaved?.(result); router.refresh(); } else router.push(`/sesiones/${result.id}`);
+    try {
+      const result = await apiJson<TrainingSession>(initial ? `/api/sessions/${initial.id}` : `/api/trainings/${training.id}/sessions`, { method: initial ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...parsed.data, ...(initial ? { expectedUpdatedAt: initial.updatedAt } : {}) }) });
+      if (!result?.id) throw new Error("Respuesta de guardado incompleta");
+      if (initial) { setSaved("Cambios guardados correctamente"); onSaved?.(result); router.refresh(); } else router.push(`/sesiones/${result.id}`);
+    } catch (caught) {
+      if (caught instanceof ApiClientError) setError(caught.message);
+      else {
+        setUncertainSave(true);
+        setError("La conexión se interrumpió y no se pudo confirmar el guardado. El borrador sigue aquí. Comprueba el expediente antes de repetir la operación; si persiste un bloqueo, solicita reconciliación a IT.");
+      }
+    } finally { setSaving(false); }
   }
 
   return <form className="form-grid" noValidate onSubmit={submit}>
     {error && <div className="full-width form-alert form-alert-error" role="alert"><strong>No se puede guardar todavía</strong><span>{error}</span></div>}
     {saved && <div className="full-width form-alert form-alert-success" role="status"><strong>Sesión actualizada</strong><span>{saved}</span></div>}
+    {!optionsReady && <div className="full-width"><button className="secondary" type="button" onClick={() => setOptionsAttempt((attempt) => attempt + 1)}>Recargar opciones</button></div>}
+    {uncertainSave && <p className="full-width">Conserva una copia de tu borrador antes de salir. Comprueba las sesiones en la ficha de formación para determinar si el guardado llegó a completarse.</p>}
     <label>Fecha prevista *<input name="plannedDate" aria-invalid={Boolean(fieldErrors.plannedDate)} type="date" value={form.plannedDate} onChange={(event) => { setForm({ ...form, plannedDate: event.target.value }); setFieldErrors((current) => ({ ...current, plannedDate: undefined })); }} />{fieldErrors.plannedDate && <small className="field-error">{fieldErrors.plannedDate}</small>}</label>
     <label>Duración (minutos) *<input name="durationMinutes" aria-invalid={Boolean(fieldErrors.durationMinutes)} inputMode="numeric" value={form.durationMinutes} onChange={(event) => { setForm({ ...form, durationMinutes: event.target.value }); setFieldErrors((current) => ({ ...current, durationMinutes: undefined })); }} />{fieldErrors.durationMinutes && <small className="field-error">{fieldErrors.durationMinutes}</small>}</label>
     <fieldset className="full-width people-picker"><legend>Formadores cualificados *</legend><p className="muted">{training.originType === "INTERNAL"
@@ -116,6 +148,6 @@ export default function SessionForm({ training, initial, onSaved }: { training: 
           emptyMessage="No hay asistentes disponibles"
         />
       </fieldset>}
-    <div className="form-actions"><button disabled={saving}>{saving ? "Guardando…" : initial ? "Guardar cambios" : "Crear sesión"}</button></div>
+    <div className="form-actions"><button disabled={saving || !optionsReady || uncertainSave}>{saving ? "Guardando…" : initial ? "Guardar cambios" : "Crear sesión"}</button></div>
   </form>;
 }

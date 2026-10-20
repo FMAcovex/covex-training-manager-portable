@@ -6,6 +6,21 @@ function json(value: unknown, init: ResponseInit = {}) {
 }
 
 describe("GraphClient", () => {
+  it("bounds stalled requests and does not retry an uncertain write", async () => {
+    let signal: AbortSignal | null | undefined;
+    const fetcher = vi.fn(async (_url, init) => { signal = init?.signal; return new Promise<Response>(() => {}); });
+    const client = new GraphClient("synthetic-token", { fetch: fetcher, timeoutMs: 10 });
+    await expect(client.request("/synthetic", { method: "POST" })).rejects.toMatchObject({ code: "requestTimeout", status: 504 });
+    expect(signal?.aborted).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("bounds a stalled response body and pre-authenticated uploads", async () => {
+    const fetcher = vi.fn(async () => new Response(new ReadableStream({ start() {} })));
+    const client = new GraphClient("synthetic-token", { fetch: fetcher, timeoutMs: 10 });
+    await expect(client.requestJson("/synthetic")).rejects.toMatchObject({ code: "requestTimeout" });
+    await expect(client.requestUpload("https://synthetic.sharepoint.com/upload", { method: "PUT" })).rejects.toMatchObject({ code: "requestTimeout" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it("follows Graph pagination and keeps the delegated token out of results", async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(json({ value: [{ id: "1" }], "@odata.nextLink": "https://graph.microsoft.com/v1.0/sites/site/lists/list/items?page=2" }))

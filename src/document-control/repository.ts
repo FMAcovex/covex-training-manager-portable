@@ -59,15 +59,7 @@ export class InMemoryDocumentControlRepository implements DocumentControlReposit
     const updatedByUserId = typeof actor === "string" ? actor : actor.id;
     const index = this.controls.findIndex((item) => item.sessionId === sessionId);
     const previous = index >= 0 ? this.controls[index] : undefined;
-    if (previous && JSON.stringify({
-      signedAnnexIII: previous.signedAnnexIII,
-      trainingMaterialArchived: previous.trainingMaterialArchived,
-      evaluationEvidenceArchived: previous.evaluationEvidenceArchived,
-      dossierPrinted: previous.dossierPrinted,
-      signedAnnexIIIReason: previous.signedAnnexIIIReason,
-      trainingMaterialReason: previous.trainingMaterialReason,
-      evaluationEvidenceReason: previous.evaluationEvidenceReason,
-    }) === JSON.stringify(input)) return structuredClone(previous);
+    if (previous && (["signedAnnexIII", "trainingMaterialArchived", "evaluationEvidenceArchived", "dossierPrinted", "signedAnnexIIIReason", "trainingMaterialReason", "evaluationEvidenceReason"] as const).every((key) => previous[key] === input[key])) return structuredClone(previous);
     const control: DocumentControl = {
       ...(index >= 0 ? this.controls[index] : { id: crypto.randomUUID(), sessionId }),
       ...input,

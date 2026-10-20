@@ -23,6 +23,7 @@ export type GraphClientOptions = {
   fetch?: typeof fetch;
   sleep?: (milliseconds: number) => Promise<void>;
   maxRetries?: number;
+  timeoutMs?: number;
 };
 
 type GraphCollection<T> = {
@@ -83,12 +84,43 @@ export class GraphClient {
   private readonly fetcher: typeof fetch;
   private readonly sleep: (milliseconds: number) => Promise<void>;
   private readonly maxRetries: number;
+  private readonly timeoutMs: number;
 
   constructor(private readonly accessToken: string, options: GraphClientOptions = {}) {
     if (!accessToken.trim()) throw new GraphRequestError("No se recibió un token delegado de Microsoft Graph.", 401);
     this.fetcher = options.fetch ?? fetch;
     this.sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.maxRetries = options.maxRetries ?? 3;
+    this.timeoutMs = options.timeoutMs ?? 30_000;
+    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new Error("El plazo de conexión debe ser positivo.");
+  }
+
+  private async fetchWithinDeadline(url: URL, init: RequestInit) {
+    const controller = new AbortController();
+    const forwardAbort = () => controller.abort(init.signal?.reason);
+    if (init.signal?.aborted) forwardAbort();
+    init.signal?.addEventListener("abort", forwardAbort, { once: true });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new GraphRequestError("Microsoft Graph agotó el tiempo de espera. Verifica el resultado antes de repetir una escritura.", 504, "requestTimeout");
+        controller.abort(error); reject(error);
+      }, this.timeoutMs);
+    });
+    try {
+      // Buffer the bounded Graph response before releasing the timer. A stalled
+      // response body must be covered as well as the initial HTTP headers.
+      return await Promise.race([deadline, (async () => {
+        const response = await this.fetcher(url, { ...init, signal: controller.signal });
+        const bytes = await response.arrayBuffer();
+        return new Response(response.status === 204 || response.status === 205 || response.status === 304 ? null : bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
+      })()]);
+    } catch (error) {
+      if (controller.signal.reason instanceof GraphRequestError) throw controller.signal.reason;
+      throw error;
+    } finally {
+      clearTimeout(timer); init.signal?.removeEventListener("abort", forwardAbort);
+    }
   }
 
   async request(pathOrUrl: string, init: RequestInit = {}) {
@@ -97,7 +129,7 @@ export class GraphClient {
       const headers = new Headers(init.headers);
       headers.set("Authorization", `Bearer ${this.accessToken}`);
       headers.set("Accept", "application/json");
-      const response = await this.fetcher(url, { ...init, headers });
+      const response = await this.fetchWithinDeadline(url, { ...init, headers });
       if (response.ok) return response;
 
       // POST/PATCH/DELETE may already have reached SharePoint. A blind retry can
@@ -135,7 +167,7 @@ export class GraphClient {
   async requestUpload(pathOrUrl: string, init: RequestInit = {}) {
     const url = uploadUrl(pathOrUrl);
     for (let attempt = 0; ; attempt += 1) {
-      const response = await this.fetcher(url, init);
+      const response = await this.fetchWithinDeadline(url, init);
       if (response.ok) return response;
       if (RETRYABLE_STATUSES.has(response.status) && attempt < this.maxRetries) {
         await this.sleep(retryDelay(response, attempt));

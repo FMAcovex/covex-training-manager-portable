@@ -73,3 +73,9 @@ El asistente permite **Copiar diagnóstico redactado** o **Exportar diagnóstico
 Sal de COVEX, descarga el nuevo ZIP y extráelo en otra carpeta. Abre su EXE: la configuración pública por usuario se conserva. No mezcles carpetas de runtime entre versiones y conserva el ZIP anterior para rollback. Los datos del piloto permanecen en SharePoint; una actualización del EXE no es una copia de seguridad de listas y biblioteca.
 
 IT puede comprobar el ZIP con `Get-FileHash -Algorithm SHA256` y comparar con el archivo `.sha256`. El ZIP no está firmado: firma de código, reputación SmartScreen y aprobación corporativa siguen pendientes.
+
+## Revisión correctiva 0.4.1-rc.1
+
+Personal permite buscar y filtrar, con páginas de 50 registros. Los diálogos responden a Escape y mantienen el foco. Si caduca la identidad al cargar una sesión, conserva el borrador, inicia sesión de nuevo y usa `Recargar opciones`. Si se interrumpe un guardado, conserva el borrador y comprueba el expediente antes de repetir; una operación incierta puede requerir reconciliación IT. Para añadir sesiones a una formación cerrada hay que reabrir explícitamente la formación con motivo. Un carácter incompatible con la plantilla PDF genera un aviso en lugar de sustituirse; conserva el nombre original y consulta con Calidad.
+
+Esta candidata mantiene **NO-GO corporativo/GMP**. En demo todos los cambios siguen en RAM y desaparecen al reiniciar. Los registros oficiales se firman en papel. Ver `AUDIT_CORRECTIONS.md` para límites técnicos y requisitos de validación.
