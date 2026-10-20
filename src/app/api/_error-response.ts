@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { GraphRequestError } from "@/portable/graph/graph-client";
 import { PortablePartialWriteError } from "@/portable/sharepoint/unit-of-work";
+import { PeopleDuplicateCodeError } from "@/server/people-repository";
+import { SessionConflictError } from "@/server/session-repository";
+import { PdfTextEncodingError } from "@/annexes/pdf-text";
 
 type ErrorConstructor = abstract new (...args: never[]) => Error;
 
@@ -14,6 +17,10 @@ export async function apiErrorResponse(
     fallback?: string;
   } = {},
 ) {
+  if (error instanceof PeopleDuplicateCodeError || error instanceof SessionConflictError) {
+    return NextResponse.json({ error: error.message }, { status: 409 });
+  }
+  if (error instanceof PdfTextEncodingError) return NextResponse.json({ error: error.message }, { status: 400 });
   if (error instanceof PortablePartialWriteError) {
     return NextResponse.json({ error: error.message, code: "reconciliationRequired", correlationId: error.correlationId }, { status: 503 });
   }

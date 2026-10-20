@@ -1,6 +1,6 @@
 {
   "name": "covex-training-manager",
-  "version": "0.4.0-rc.1",
+  "version": "0.4.1-rc.1",
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "scripts": {
@@ -35,7 +35,7 @@
     "@azure/msal-browser": "^5.25.1",
     "@prisma/client": "^6.16.2",
     "jose": "6.2.12",
-    "next": "^15.5.4",
+    "next": "15.5.28",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "read-excel-file": "9.3.10",
@@ -48,12 +48,12 @@
     "@types/react-dom": "^19.1.7",
     "electron": "^44.7.2",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^15.5.4",
+    "eslint-config-next": "15.5.28",
     "eslint-plugin-react-hooks": "^5.2.0",
     "playwright-core": "1.57.0",
     "prisma": "^6.16.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "4.1.11"
   }
 }

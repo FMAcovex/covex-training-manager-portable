@@ -10,5 +10,6 @@ export default function NewSessionClient({ trainingId }: { trainingId: string })
   useEffect(() => { void fetch(`/api/trainings/${trainingId}`).then(async (response) => response.ok ? setTraining(await response.json()) : setNotFound(true)); }, [trainingId]);
   if (notFound) return <p>Formación no encontrada.</p>;
   if (!training) return <p>Cargando…</p>;
+  if (training.closedAt) return <section className="card"><h1>Formación cerrada</h1><p>Reabre explícitamente la formación antes de añadir sesiones.</p><Link className="text-link" href={`/formaciones/${training.id}`}>Volver a la formación</Link></section>;
   return <><PageHeader title="Añadir sesión" description={`${training.code} · ${training.name}`} action={<Link className="button-link secondary-link" href={`/formaciones/${training.id}`}>Cancelar</Link>} /><section className="card"><SessionForm training={training} /></section></>;
 }

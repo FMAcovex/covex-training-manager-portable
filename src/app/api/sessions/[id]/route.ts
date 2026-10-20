@@ -7,6 +7,7 @@ import { getTrainingRepository } from "@/server/training-repositories";
 import { getTrainerRepository } from "@/server/trainer-repositories";
 import { validateQualifiedTrainerSelection } from "@/server/trainer-selection";
 import { SessionAuthorizationError, SessionImmutableFieldError, SessionRelationError, SessionStateError } from "@/server/session-repository";
+import { z } from "zod";
 
 type Context = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, context: Context) {
@@ -23,7 +24,8 @@ export async function PATCH(request: Request, context: Context) {
     const repository = getSessionRepository();
     const existing = await repository.findById(id);
     if (!existing) return NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 });
-    const input = validateSessionInput(await request.json());
+    const { expectedUpdatedAt: version, ...body } = z.object({ expectedUpdatedAt: z.string({ required_error: "La versión original de la sesión es obligatoria" }).datetime() }).passthrough().parse(await request.json());
+    const input = validateSessionInput(body);
     const training = await getTrainingRepository().findById(existing.trainingId);
     if (!training) return NextResponse.json({ error: "Formación no encontrada" }, { status: 400 });
     await validateQualifiedTrainerSelection(
@@ -32,7 +34,7 @@ export async function PATCH(request: Request, context: Context) {
       training.originType === "EXTERNAL",
       existing.trainerPersonIds ?? (existing.trainerPersonId ? [existing.trainerPersonId] : []),
     );
-    const session = await repository.update(id, input, auth.user);
+    const session = await repository.update(id, input, auth.user, version);
     return session ? NextResponse.json(session) : NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 });
   } catch (error) {
     return apiErrorResponse(error, {

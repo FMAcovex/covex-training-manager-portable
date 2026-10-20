@@ -366,3 +366,17 @@ En `PORTABLE_DESKTOP_MODE=demo`, el almacén JSON no lee ni escribe: los reposit
 Una allowlist exacta por método/ruta en servidor limita las mutaciones. Siguen denegados importaciones, adjuntos, controles/cierre documental, administración no necesaria y todas las API portable corporativas. Se conservan host/cookie/Origin y aislamiento de red/entorno/lifecycle H10C. La modalidad corporativa H10C, los 22 adaptadores H10B, H9A y el original no se alteran. La prueba nativa ejecuta el ZIP extraído, descarga el PDF y reinicia el EXE completo para verificar ausencia de registros.
 
 **NO-GO corporativo / GMP** se mantiene: las pruebas sintéticas o Windows CI no validan Entra/SharePoint reales, permisos, auditoría ni recuperación con COVEX.
+
+## D-066 — Fase correctiva de auditoría (puntos 1–5)
+
+Autorizada por el responsable el 20/10/2026. Para añadir una Sesión a una Formación cerrada documentalmente se exige **reapertura explícita previa**, con motivo y auditoría existentes. Aplica también a altas históricas; la edición general de Formación permanece permitida. No se invalida ni reabre el cierre automáticamente.
+
+La edición HTTP de Sesión exige `expectedUpdatedAt` del formulario original. Los proveedores comprueban esa versión; portable lo hace dentro del bloqueo coordinado y conserva ETags/journal. Los eventos portable preservan la acción y el contexto del motor, incluidos motivo de reapertura y `CLOSED_SESSION_CORRECTED`.
+
+Las nuevas escrituras portable de Sesión usan las filas `Attendance` existentes, con contador y SHA-256 del conjunto en el agregado (`rows-v1`). Los agregados antiguos embebidos se siguen leyendo; se convierten solo al modificarlos. Los eventos grandes conservan contenido completo en segmentos de `AuditEvent`, con manifiesto y hash. No se añaden modelos ni se eleva el límite de campo de SharePoint. Un hash detecta alteración accidental; no garantiza autenticidad frente a una cuenta con permiso de escritura.
+
+Los códigos de empleado duplicados se validan antes de mutar bajo coordinación. Los fallos inciertos siguen bloqueando hasta reconciliación IT. Graph tiene un plazo explícito por petición, incluido cuerpo; no se repiten automáticamente escrituras de listas tras un timeout. Un formulario con resultado incierto conserva el borrador y exige comprobar el expediente antes de repetir.
+
+Se conserva la plantilla Helvetica/WinAnsi: los caracteres no representables bloquean la generación con mensaje claro, sin cambiar el dato maestro ni emitir un PDF incompleto. Una fuente Unicode nueva requiere plantilla aprobada por Calidad. El PDF no sustituye al registro oficial firmado en papel.
+
+Instalar esta revisión coordinadamente en todos los clientes del piloto; clientes antiguos no conocen la representación nueva. No desplegar sobre datos corporativos: se mantiene **NO-GO corporativo/GMP**, pendiente de IT y Calidad.

@@ -2,12 +2,12 @@ import type { AnnexIIIRenderPage, AnnexIIIRenderPlan, RenderAttendeeRow } from "
 import { measureTextWidth } from "@/annexes/pdf-font-metrics";
 import { COVEX_LOGO_TEST } from "@/annexes/templates/covex-logo-test";
 import { buildPdfDocument } from "@/annexes/pdf-core";
+import { pdfText } from "@/annexes/pdf-text";
 
 type PdfPageCommands = string[];
 const number = (value: number) => Number(value.toFixed(2));
 const hexColor = (hex: string) => [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
 const colorCommand = (hex: string, stroke = false) => `${hexColor(hex).map((value) => value.toFixed(3)).join(" ")} ${stroke ? "RG" : "rg"}`;
-const pdfText = (value: string) => value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)").replace(/[\u2013\u2014]/g, "-").replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[^\x00-\xff]/g, "?");
 
 function fillRect(commands: PdfPageCommands, x: number, y: number, width: number, height: number, fill: string, border: string, lineWidth = 0.7) {
   commands.push("q", colorCommand(fill), colorCommand(border, true), `${lineWidth} w`, `${number(x)} ${number(y)} ${number(width)} ${number(height)} re B`, "Q");

@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/auth/current-user";
 import { canCloseSession, canCreateSession, canEditSession, canReopenSession } from "@/auth/current-user";
 import { auditData } from "@/administration/prisma-audit-repository";
 import { calculateTrainingStatus, formatSessionCode, validateAttendanceCompletion, type Attendance, type FinalizeSessionInput, type NotExecutedInput, type SessionInput, type TrainingSession } from "@/domain/training-session";
-import { SessionAuthorizationError, SessionImmutableFieldError, SessionRelationError, SessionStateError, type HistoricalSessionImportInput, type SessionRepository } from "@/server/session-repository";
+import { SessionAuthorizationError, SessionConflictError, SessionImmutableFieldError, SessionRelationError, SessionStateError, type HistoricalSessionImportInput, type SessionRepository } from "@/server/session-repository";
 
 type SessionRow = PrismaTrainingSession & { attendances: PrismaAttendance[]; trainerLinks: Array<{ personId: string }> };
 const sessionInclude = { attendances: true, trainerLinks: { select: { personId: true } } } satisfies Prisma.TrainingSessionInclude;
@@ -58,6 +58,7 @@ export class PrismaSessionRepository implements SessionRepository {
     return this.prisma.$transaction(async (transaction) => {
       const training = await transaction.training.findUnique({ where: { id: input.trainingId } });
       if (!training) throw new SessionRelationError("La formación asociada no existe");
+      if (training.closedAt) throw new SessionStateError("Reabre explícitamente la formación antes de añadir sesiones.");
       const sequence = await transaction.sessionCodeSequence.upsert({ where: { trainingId: training.id }, create: { trainingId: training.id, lastValue: 1 }, update: { lastValue: { increment: 1 } } });
       const ids = unique(input.trainerPersonIds ?? (input.trainerPersonId ? [input.trainerPersonId] : []));
       const names = unique(input.externalTrainerNames ?? (input.externalTrainerName ? [input.externalTrainerName] : []));
@@ -110,8 +111,9 @@ export class PrismaSessionRepository implements SessionRepository {
 
   async create(input: SessionInput, actor: CurrentUser) {
     if (!canCreateSession(actor)) throw new SessionAuthorizationError();
-    const training = await this.validateRelations(input);
     return this.prisma.$transaction(async (transaction) => {
+      const training = await this.validateRelations(input, undefined, transaction);
+      if (training.closedAt) throw new SessionStateError("Reabre explícitamente la formación antes de añadir sesiones.");
       const sequence = await transaction.sessionCodeSequence.upsert({ where: { trainingId: training.id }, create: { trainingId: training.id, lastValue: 1 }, update: { lastValue: { increment: 1 } } });
       const ids = trainerIds(input);
       const item = await transaction.trainingSession.create({
@@ -128,12 +130,13 @@ export class PrismaSessionRepository implements SessionRepository {
     });
   }
 
-  async update(id: string, input: SessionInput, actor: CurrentUser) {
+  async update(id: string, input: SessionInput, actor: CurrentUser, expectedUpdatedAt?: string) {
     return this.prisma.$transaction(async (transaction) => {
       const stored = await transaction.trainingSession.findUnique({ where: { id }, include: sessionInclude });
       if (!stored) return undefined;
       const existing = toSession(stored as SessionRow);
       if (!canEditSession(actor, existing.executionStatus)) throw new SessionAuthorizationError();
+      if (expectedUpdatedAt && existing.updatedAt !== expectedUpdatedAt) throw new SessionConflictError();
       if (input.trainingId !== existing.trainingId) throw new SessionImmutableFieldError();
       const existingAttendeeIds = new Set(existing.attendances.map((item) => item.personId));
       const requestedAttendeeIds = new Set(input.attendeePersonIds);
@@ -147,6 +150,7 @@ export class PrismaSessionRepository implements SessionRepository {
         for (const personId of requestedAttendeeIds) if (!existingAttendeeIds.has(personId)) await transaction.attendance.create({ data: { sessionId: id, personId } });
       }
       const updated = await transaction.trainingSession.updateMany({ where: { id, executionStatus: stored.executionStatus, updatedAt: stored.updatedAt }, data: {
+        updatedAt: new Date(Math.max(Date.now(), stored.updatedAt.getTime() + 1)),
         plannedDate: asDate(input.plannedDate), externalTrainerNames: externalNames(input), blankAttendanceRows: input.blankAttendanceRows ?? 0, durationMinutes: input.durationMinutes, notes: input.notes ?? null,
       } });
       if (updated.count !== 1) throw new SessionStateError("La sesión ha cambiado de estado o contenido durante la edición");

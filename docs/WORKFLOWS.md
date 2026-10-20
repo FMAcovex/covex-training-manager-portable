@@ -25,6 +25,7 @@ Resultado: Formación incorporada al ejercicio con origen no planificado.
 ## WF-03 — Crear Sesión
 
 1. Abrir Formación.
+   Si está cerrada documentalmente, reabrirla explícitamente con motivo antes de añadir sesiones (D-066).
 2. Pulsar `Añadir sesión`.
 3. Indicar fecha prevista, formador y duración.
 4. Seleccionar asistentes previstos.

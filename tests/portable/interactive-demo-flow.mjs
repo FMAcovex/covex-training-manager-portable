@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { runAuditCorrectionFlow } from "./audit-correction-flow.mjs";
 
 // Shared acceptance scenario: identical existing UI in Chromium and packaged EXE.
 // No test endpoint, alternate form, repository injection or production backdoor.
@@ -78,7 +79,7 @@ export async function runInteractiveDemoFlow(page, origin, downloadPDF) {
   const edited = await saved(page, "PATCH", `/api/sessions/${session.id}`, 200, () => page.getByRole("button", { name: "Guardar cambios", exact: true }).click());
   assert.equal(edited.durationMinutes, 90); assert.equal(edited.attendances.length, 2);
   // Duplicate assistants and invalid completions must be rejected server-side too.
-  const invalidSession = { trainingId: training.id, plannedDate: "2027-01-12", trainerPersonIds: ["demo-1"], durationMinutes: 90, attendeePersonIds: [person.id, person.id] };
+  const invalidSession = { trainingId: training.id, plannedDate: "2027-01-12", trainerPersonIds: ["demo-1"], durationMinutes: 90, attendeePersonIds: [person.id, person.id], expectedUpdatedAt: edited.updatedAt };
   assert.equal((await demoJson(page, `/api/sessions/${session.id}`, "PATCH", invalidSession)).status, 400);
   assert.equal((await demoJson(page, `/api/sessions/${session.id}/finalize`, "POST", { executionDate: "2027-01-12", initializeDefaults: false, attendances: [] })).status, 400);
 
@@ -119,6 +120,7 @@ export async function runInteractiveDemoFlow(page, origin, downloadPDF) {
   assert.equal(persistedInRam.status, 200); assert.equal(persistedInRam.data.durationMinutes, 90);
   assert.deepEqual(errors, [], "No uncaught UI errors");
   page.off("pageerror", onError);
+  await runAuditCorrectionFlow(page, origin);
   return { before, person, training, session, pdfBytes: pdf.length };
 }
 

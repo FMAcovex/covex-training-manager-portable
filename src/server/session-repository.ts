@@ -13,7 +13,7 @@ export interface SessionRepository {
   listByPerson(personId: string): Promise<TrainingSession[]>;
   findById(id: string): Promise<TrainingSession | undefined>;
   create(input: SessionInput, actor: CurrentUser): Promise<TrainingSession>;
-  update(id: string, input: SessionInput, actor: CurrentUser): Promise<TrainingSession | undefined>;
+  update(id: string, input: SessionInput, actor: CurrentUser, expectedUpdatedAt?: string): Promise<TrainingSession | undefined>;
   finalize(id: string, input: FinalizeSessionInput, actor: CurrentUser): Promise<TrainingSession | undefined>;
   markNotExecuted(id: string, input: NotExecutedInput, actor: CurrentUser): Promise<TrainingSession | undefined>;
   reopen(id: string, reason: string, actor: CurrentUser): Promise<TrainingSession | undefined>;
@@ -40,6 +40,9 @@ export class SessionAuthorizationError extends Error { constructor() { super("No
 export class SessionImmutableFieldError extends Error { constructor() { super("El código y la formación de una sesión no pueden modificarse"); } }
 export class SessionStateError extends Error { constructor(message = "La sesión debe estar pendiente") { super(message); } }
 export class SessionRelationError extends Error {}
+export class SessionConflictError extends Error {
+  constructor() { super("La sesión cambió desde que abriste el formulario. Conserva tu borrador y recarga los datos antes de guardar."); }
+}
 
 const fixedTime = "2026-01-15T09:00:00.000Z";
 const unique = (values: string[]) => [...new Set(values.filter(Boolean))];
@@ -110,6 +113,7 @@ export class InMemorySessionRepository implements SessionRepository {
     if (actor.role !== "ADMIN") throw new SessionAuthorizationError();
     const training = await this.trainings.findById(input.trainingId);
     if (!training) throw new SessionRelationError("La formación asociada no existe");
+    if (training.closedAt) throw new SessionStateError("Reabre explícitamente la formación antes de añadir sesiones.");
     const sequence = (this.lastSequence.get(training.id) ?? 0) + 1;
     const timestamp = new Date().toISOString();
     const sessionId = crypto.randomUUID();
@@ -173,6 +177,7 @@ export class InMemorySessionRepository implements SessionRepository {
   async create(input: SessionInput, actor: CurrentUser) {
     if (!canCreateSession(actor)) throw new SessionAuthorizationError();
     const training = await this.validateRelations(input);
+    if (training.closedAt) throw new SessionStateError("Reabre explícitamente la formación antes de añadir sesiones.");
     const sequence = (this.lastSequence.get(training.id) ?? 0) + 1;
     const timestamp = new Date().toISOString();
     const sessionId = crypto.randomUUID();
@@ -190,11 +195,12 @@ export class InMemorySessionRepository implements SessionRepository {
     return structuredClone(session);
   }
 
-  async update(id: string, input: SessionInput, actor: CurrentUser) {
+  async update(id: string, input: SessionInput, actor: CurrentUser, expectedUpdatedAt?: string) {
     const index = this.sessions.findIndex((session) => session.id === id);
     if (index < 0) return undefined;
     const existing = this.sessions[index];
     if (!canEditSession(actor, existing.executionStatus)) throw new SessionAuthorizationError();
+    if (expectedUpdatedAt && existing.updatedAt !== expectedUpdatedAt) throw new SessionConflictError();
     if (input.trainingId !== existing.trainingId) throw new SessionImmutableFieldError();
     const existingAttendeeIds = new Set(existing.attendances.map((item) => item.personId));
     const requestedAttendeeIds = new Set(input.attendeePersonIds);
@@ -203,7 +209,7 @@ export class InMemorySessionRepository implements SessionRepository {
       throw new SessionStateError("Los asistentes de una sesión cerrada no pueden añadirse ni eliminarse mediante la edición general");
     }
     await this.validateRelations(input, existing);
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date(Math.max(Date.now(), Date.parse(existing.updatedAt) + 1)).toISOString();
     const byPerson = new Map(existing.attendances.map((item) => [item.personId, item]));
     const updated: TrainingSession = {
       ...existing, plannedDate: input.plannedDate, trainerPersonIds: trainerIds(input), trainerPersonId: trainerIds(input)[0],

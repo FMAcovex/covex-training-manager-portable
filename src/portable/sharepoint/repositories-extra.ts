@@ -203,8 +203,10 @@ export class PortableDocumentControlRepository implements DocumentControlReposit
   async findBySessionIds(ids: string[]) { const wanted = new Set(ids); return (await this.store.list<DocumentControl>("DocumentControl")).map((x) => x.data).filter((x) => wanted.has(x.sessionId)).map(clone); }
   async upsert(sessionId: string, input: DocumentControlInput, actor: CurrentUser | string) {
     const actorId = typeof actor === "string" ? actor : actor.id; const current = await this.store.findUnique<DocumentControl>("DocumentControl", sessionId);
-    const engine = new InMemoryDocumentControlRepository(current ? [current.data] : [], { append: async (event) => ({ ...event, id: "validation", timestamp: "" }), list: async () => [] });
+    let changed = false;
+    const engine = new InMemoryDocumentControlRepository(current ? [current.data] : [], { append: async (event) => { changed = true; return { ...event, id: "validation", timestamp: "" }; }, list: async () => [] });
     const value = await engine.upsert(sessionId, input, actor);
+    if (current && !changed) return clone(current.data);
     if (current) await this.store.update("DocumentControl", current, value, { uniqueKey: sessionId, parentId: sessionId }); else await this.store.create("DocumentControl", value.id, value, { uniqueKey: sessionId, parentId: sessionId });
     await this.audit.append({ actorUserId: actorId, entityType: "DOCUMENT_CONTROL", entityId: value.id, action: "DOCUMENT_CONTROL_UPDATED", beforeJson: current?.data, afterJson: value, contextJson: { sessionId } }); return clone(value);
   }
